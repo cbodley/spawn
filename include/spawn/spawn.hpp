@@ -16,9 +16,10 @@
 # pragma once
 #endif // defined(_MSC_VER) && (_MSC_VER >= 1200)
 
+#include <memory>
+
 #include <boost/asio/detail/config.hpp>
 #include <boost/asio/bind_executor.hpp>
-#include <boost/asio/detail/memory.hpp>
 #include <boost/asio/detail/noncopyable.hpp>
 #include <boost/asio/detail/type_traits.hpp>
 #include <boost/asio/detail/wrapped_handler.hpp>
@@ -72,7 +73,7 @@ public:
    * function.
    */
   basic_yield_context(
-      const detail::weak_ptr<detail::continuation_context>& callee,
+      const std::weak_ptr<detail::continuation_context>& callee,
       detail::continuation_context& caller, Handler& handler)
     : callee_(callee),
       caller_(caller),
@@ -123,7 +124,7 @@ public:
 #if defined(GENERATING_DOCUMENTATION)
 private:
 #endif // defined(GENERATING_DOCUMENTATION)
-  detail::weak_ptr<detail::continuation_context> callee_;
+  std::weak_ptr<detail::continuation_context> callee_;
   detail::continuation_context& caller_;
   Handler handler_;
   boost::system::error_code* ec_;

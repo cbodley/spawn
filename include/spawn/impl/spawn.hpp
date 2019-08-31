@@ -16,6 +16,8 @@
 # pragma once
 #endif // defined(_MSC_VER) && (_MSC_VER >= 1200)
 
+#include <memory>
+
 #include <boost/asio/detail/config.hpp>
 #include <boost/asio/associated_allocator.hpp>
 #include <boost/asio/associated_executor.hpp>
@@ -25,7 +27,6 @@
 #include <boost/asio/detail/handler_alloc_helpers.hpp>
 #include <boost/asio/detail/handler_cont_helpers.hpp>
 #include <boost/asio/detail/handler_invoke_helpers.hpp>
-#include <boost/asio/detail/memory.hpp>
 #include <boost/asio/detail/noncopyable.hpp>
 #include <boost/asio/detail/type_traits.hpp>
 #include <boost/system/system_error.hpp>
@@ -116,7 +117,7 @@ namespace detail {
     }
 
   //private:
-    shared_ptr<continuation_context> callee_;
+    std::shared_ptr<continuation_context> callee_;
     continuation_context& caller_;
     Handler handler_;
     atomic_count* ready_;
@@ -152,7 +153,7 @@ namespace detail {
     }
 
   //private:
-    shared_ptr<continuation_context> callee_;
+    std::shared_ptr<continuation_context> callee_;
     continuation_context& caller_;
     Handler handler_;
     atomic_count* ready_;
@@ -390,7 +391,7 @@ namespace detail {
           std::allocator_arg, BOOST_ASIO_MOVE_CAST(StackAllocator)(data_->salloc_),
           [this] (BOOST_ASIO_MOVE_ARG(boost::context::continuation) c)
           {
-            shared_ptr<spawn_data<Handler, Function, StackAllocator> > data = data_;
+            std::shared_ptr<spawn_data<Handler, Function, StackAllocator> > data = data_;
             data->caller_.context_ = BOOST_ASIO_MOVE_CAST(boost::context::continuation)(c);
             const basic_yield_context<Handler> yh(callee_, data->caller_, data->handler_);
             (data->function_)(yh);
@@ -404,8 +405,8 @@ namespace detail {
           });
     }
 
-    shared_ptr<continuation_context> callee_;
-    shared_ptr<spawn_data<Handler, Function, StackAllocator> > data_;
+    std::shared_ptr<continuation_context> callee_;
+    std::shared_ptr<spawn_data<Handler, Function, StackAllocator> > data_;
   };
 #else
   template <typename StackAllocator>
@@ -521,7 +522,7 @@ void spawn(BOOST_ASIO_MOVE_ARG(Handler) handler,
       (get_associated_allocator)(handler));
 
   detail::spawn_helper<handler_type, function_type, StackAllocator> helper;
-  helper.data_ = detail::make_shared<
+  helper.data_ = std::make_shared<
       detail::spawn_data<handler_type, function_type, StackAllocator> >(
         BOOST_ASIO_MOVE_CAST(Handler)(handler), true,
         BOOST_ASIO_MOVE_CAST(Function)(function),
@@ -548,7 +549,7 @@ void spawn(basic_yield_context<Handler> ctx,
       (get_associated_allocator)(handler));
 
   detail::spawn_helper<Handler, function_type, StackAllocator> helper;
-  helper.data_ = detail::make_shared<
+  helper.data_ = std::make_shared<
       detail::spawn_data<Handler, function_type, StackAllocator> >(
         BOOST_ASIO_MOVE_CAST(Handler)(handler), false,
         BOOST_ASIO_MOVE_CAST(Function)(function),
