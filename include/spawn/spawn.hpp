@@ -21,7 +21,6 @@
 
 #include <boost/asio/detail/config.hpp>
 #include <boost/asio/bind_executor.hpp>
-#include <boost/asio/detail/type_traits.hpp>
 #include <boost/asio/detail/wrapped_handler.hpp>
 #include <boost/asio/executor.hpp>
 #include <boost/asio/io_context.hpp>
@@ -188,8 +187,8 @@ typedef basic_yield_context<
  */
 template <typename Function, typename StackAllocator>
 void spawn(Function&& function, StackAllocator&& salloc,
-    typename enable_if<detail::is_stack_allocator<
-      typename decay<StackAllocator>::type>::value>::type* = 0);
+    typename std::enable_if<detail::is_stack_allocator<
+      typename std::decay<StackAllocator>::type>::value>::type* = 0);
 
 template <typename Function>
 void spawn(Function&& function)
@@ -215,16 +214,16 @@ void spawn(Function&& function)
  */
 template <typename Handler, typename Function, typename StackAllocator>
 void spawn(Handler&& handler, Function&& function, StackAllocator&& salloc,
-    typename enable_if<!is_executor<typename decay<Handler>::type>::value &&
-      !is_convertible<Handler&, execution_context&>::value &&
-      !detail::is_stack_allocator<typename decay<Function>::type>::value &&
-      detail::is_stack_allocator<typename decay<StackAllocator>::type>::value>::type* = 0);
+    typename std::enable_if<!is_executor<typename std::decay<Handler>::type>::value &&
+      !std::is_convertible<Handler&, execution_context&>::value &&
+      !detail::is_stack_allocator<typename std::decay<Function>::type>::value &&
+      detail::is_stack_allocator<typename std::decay<StackAllocator>::type>::value>::type* = 0);
 
 template <typename Handler, typename Function>
 void spawn(Handler&& handler, Function&& function,
-    typename enable_if<!is_executor<typename decay<Handler>::type>::value &&
-      !detail::is_stack_allocator<typename decay<Function>::type>::value &&
-      !is_convertible<Handler&, execution_context&>::value>::type* = 0)
+    typename std::enable_if<!is_executor<typename std::decay<Handler>::type>::value &&
+      !detail::is_stack_allocator<typename std::decay<Function>::type>::value &&
+      !std::is_convertible<Handler&, execution_context&>::value>::type* = 0)
 {
   spawn(std::forward<Handler>(handler), std::forward<Function>(function),
         boost::context::default_stack());
@@ -249,8 +248,8 @@ void spawn(Handler&& handler, Function&& function,
 template <typename Handler, typename Function, typename StackAllocator>
 void spawn(basic_yield_context<Handler> ctx,
     Function&& function, StackAllocator&& salloc,
-    typename enable_if<detail::is_stack_allocator<
-      typename decay<StackAllocator>::type>::value>::type* = 0);
+    typename std::enable_if<detail::is_stack_allocator<
+      typename std::decay<StackAllocator>::type>::value>::type* = 0);
 
 template <typename Handler, typename Function>
 void spawn(basic_yield_context<Handler> ctx, Function&& function)
@@ -273,12 +272,12 @@ void spawn(basic_yield_context<Handler> ctx, Function&& function)
  */
 template <typename Function, typename Executor, typename StackAllocator>
 void spawn(const Executor& ex, Function&& function, StackAllocator&& salloc,
-    typename enable_if<is_executor<Executor>::value &&
-      detail::is_stack_allocator<typename decay<StackAllocator>::type>::value>::type* = 0);
+    typename std::enable_if<is_executor<Executor>::value &&
+      detail::is_stack_allocator<typename std::decay<StackAllocator>::type>::value>::type* = 0);
 
 template <typename Function, typename Executor>
 void spawn(const Executor& ex, Function&& function,
-    typename enable_if<is_executor<Executor>::value>::type* = 0)
+    typename std::enable_if<is_executor<Executor>::value>::type* = 0)
 {
   spawn(ex, std::forward<Function>(function), boost::context::default_stack());
 }
@@ -298,8 +297,8 @@ void spawn(const Executor& ex, Function&& function,
 template <typename Function, typename Executor, typename StackAllocator>
 void spawn(const strand<Executor>& ex,
     Function&& function, StackAllocator&& salloc,
-    typename enable_if<detail::is_stack_allocator<
-      typename decay<StackAllocator>::type>::value>::type* = 0);
+    typename std::enable_if<detail::is_stack_allocator<
+      typename std::decay<StackAllocator>::type>::value>::type* = 0);
 
 template <typename Function, typename Executor>
 void spawn(const strand<Executor>& ex, Function&& function)
@@ -324,8 +323,8 @@ void spawn(const strand<Executor>& ex, Function&& function)
 template <typename Function, typename StackAllocator>
 void spawn(const boost::asio::io_context::strand& s,
     Function&& function, StackAllocator&& salloc,
-    typename enable_if<detail::is_stack_allocator<
-      typename decay<StackAllocator>::type>::value>::type* = 0);
+    typename std::enable_if<detail::is_stack_allocator<
+      typename std::decay<StackAllocator>::type>::value>::type* = 0);
 
 template <typename Function>
 void spawn(const boost::asio::io_context::strand& s, Function&& function)
@@ -349,13 +348,12 @@ void spawn(const boost::asio::io_context::strand& s, Function&& function)
  */
 template <typename Function, typename ExecutionContext, typename StackAllocator>
 void spawn(ExecutionContext& ctx, Function&& function, StackAllocator&& salloc,
-    typename enable_if<is_convertible<
-      ExecutionContext&, execution_context&>::value &&
-      detail::is_stack_allocator<typename decay<StackAllocator>::type>::value>::type* = 0);
+    typename std::enable_if<std::is_convertible<ExecutionContext&, execution_context&>::value &&
+      detail::is_stack_allocator<typename std::decay<StackAllocator>::type>::value>::type* = 0);
 
 template <typename Function, typename ExecutionContext>
 void spawn(ExecutionContext& ctx, Function&& function,
-    typename enable_if<is_convertible<
+    typename std::enable_if<std::is_convertible<
       ExecutionContext&, execution_context&>::value>::type* = 0)
 {
   spawn(ctx, std::forward<Function>(function), boost::context::default_stack());

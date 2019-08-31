@@ -28,7 +28,6 @@
 #include <boost/asio/detail/handler_alloc_helpers.hpp>
 #include <boost/asio/detail/handler_cont_helpers.hpp>
 #include <boost/asio/detail/handler_invoke_helpers.hpp>
-#include <boost/asio/detail/type_traits.hpp>
 #include <boost/system/system_error.hpp>
 #include <boost/context/continuation.hpp>
 
@@ -260,13 +259,13 @@ public:
 
 template <typename Handler, typename ReturnType, typename Arg1>
 class async_result<basic_yield_context<Handler>, ReturnType(Arg1)>
-  : public detail::coro_async_result<Handler, typename decay<Arg1>::type>
+  : public detail::coro_async_result<Handler, typename std::decay<Arg1>::type>
 {
 public:
   explicit async_result(
     typename detail::coro_async_result<Handler,
-      typename decay<Arg1>::type>::completion_handler_type& h)
-    : detail::coro_async_result<Handler, typename decay<Arg1>::type>(h)
+      typename std::decay<Arg1>::type>::completion_handler_type& h)
+    : detail::coro_async_result<Handler, typename std::decay<Arg1>::type>(h)
   {
   }
 };
@@ -288,13 +287,13 @@ public:
 template <typename Handler, typename ReturnType, typename Arg2>
 class async_result<basic_yield_context<Handler>,
     ReturnType(boost::system::error_code, Arg2)>
-  : public detail::coro_async_result<Handler, typename decay<Arg2>::type>
+  : public detail::coro_async_result<Handler, typename std::decay<Arg2>::type>
 {
 public:
   explicit async_result(
     typename detail::coro_async_result<Handler,
-      typename decay<Arg2>::type>::completion_handler_type& h)
-    : detail::coro_async_result<Handler, typename decay<Arg2>::type>(h)
+      typename std::decay<Arg2>::type>::completion_handler_type& h)
+    : detail::coro_async_result<Handler, typename std::decay<Arg2>::type>(h)
   {
   }
 };
@@ -398,10 +397,10 @@ namespace detail {
 
 template <typename Function, typename StackAllocator>
 inline void spawn(Function&& function, StackAllocator&& salloc,
-    typename enable_if<detail::is_stack_allocator<
-      typename decay<StackAllocator>::type>::value>::type*)
+    typename std::enable_if<detail::is_stack_allocator<
+      typename std::decay<StackAllocator>::type>::value>::type*)
 {
-  typedef typename decay<Function>::type function_type;
+  typedef typename std::decay<Function>::type function_type;
 
   typename associated_executor<function_type>::type ex(
       (get_associated_executor)(function));
@@ -411,13 +410,13 @@ inline void spawn(Function&& function, StackAllocator&& salloc,
 
 template <typename Handler, typename Function, typename StackAllocator>
 void spawn(Handler&& handler, Function&& function, StackAllocator&& salloc,
-    typename enable_if<!is_executor<typename decay<Handler>::type>::value &&
-      !is_convertible<Handler&, execution_context&>::value &&
-      !detail::is_stack_allocator<typename decay<Function>::type>::value &&
-      detail::is_stack_allocator<typename decay<StackAllocator>::type>::value>::type*)
+    typename std::enable_if<!is_executor<typename std::decay<Handler>::type>::value &&
+      !std::is_convertible<Handler&, execution_context&>::value &&
+      !detail::is_stack_allocator<typename std::decay<Function>::type>::value &&
+      detail::is_stack_allocator<typename std::decay<StackAllocator>::type>::value>::type*)
 {
-  typedef typename decay<Handler>::type handler_type;
-  typedef typename decay<Function>::type function_type;
+  typedef typename std::decay<Handler>::type handler_type;
+  typedef typename std::decay<Function>::type function_type;
 
   typename associated_executor<handler_type>::type ex(
       (get_associated_executor)(handler));
@@ -438,10 +437,10 @@ void spawn(Handler&& handler, Function&& function, StackAllocator&& salloc,
 template <typename Handler, typename Function, typename StackAllocator>
 void spawn(basic_yield_context<Handler> ctx,
     Function&& function, StackAllocator&& salloc,
-    typename enable_if<detail::is_stack_allocator<
-      typename decay<StackAllocator>::type>::value>::type*)
+    typename std::enable_if<detail::is_stack_allocator<
+      typename std::decay<StackAllocator>::type>::value>::type*)
 {
-  typedef typename decay<Function>::type function_type;
+  typedef typename std::decay<Function>::type function_type;
 
   Handler handler(ctx.handler_); // Explicit copy that might be moved from.
 
@@ -464,8 +463,8 @@ void spawn(basic_yield_context<Handler> ctx,
 template <typename Function, typename Executor, typename StackAllocator>
 inline void spawn(const Executor& ex,
     Function&& function, StackAllocator&& salloc,
-    typename enable_if<is_executor<Executor>::value &&
-      detail::is_stack_allocator<typename decay<StackAllocator>::type>::value>::type*)
+    typename std::enable_if<is_executor<Executor>::value &&
+      detail::is_stack_allocator<typename std::decay<StackAllocator>::type>::value>::type*)
 {
   boost::asio::spawn(boost::asio::strand<Executor>(ex),
       std::forward<Function>(function),
@@ -475,8 +474,8 @@ inline void spawn(const Executor& ex,
 template <typename Function, typename Executor, typename StackAllocator>
 inline void spawn(const strand<Executor>& ex,
     Function&& function, StackAllocator&& salloc,
-    typename enable_if<detail::is_stack_allocator<
-      typename decay<StackAllocator>::type>::value>::type*)
+    typename std::enable_if<detail::is_stack_allocator<
+      typename std::decay<StackAllocator>::type>::value>::type*)
 {
   boost::asio::spawn(boost::asio::bind_executor(
         ex, &detail::default_spawn_handler),
@@ -487,8 +486,8 @@ inline void spawn(const strand<Executor>& ex,
 template <typename Function, typename StackAllocator>
 inline void spawn(const boost::asio::io_context::strand& s,
     Function&& function, StackAllocator&& salloc,
-    typename enable_if<detail::is_stack_allocator<
-      typename decay<StackAllocator>::type>::value>::type*)
+    typename std::enable_if<detail::is_stack_allocator<
+      typename std::decay<StackAllocator>::type>::value>::type*)
 {
   boost::asio::spawn(boost::asio::bind_executor(
         s, &detail::default_spawn_handler),
@@ -499,9 +498,8 @@ inline void spawn(const boost::asio::io_context::strand& s,
 template <typename Function, typename ExecutionContext, typename StackAllocator>
 inline void spawn(ExecutionContext& ctx,
     Function&& function, StackAllocator&& salloc,
-    typename enable_if<is_convertible<
-      ExecutionContext&, execution_context&>::value &&
-      detail::is_stack_allocator<typename decay<StackAllocator>::type>::value>::type*)
+    typename std::enable_if<std::is_convertible<ExecutionContext&, execution_context&>::value &&
+      detail::is_stack_allocator<typename std::decay<StackAllocator>::type>::value>::type*)
 {
   boost::asio::spawn(ctx.get_executor(),
       std::forward<Function>(function),
