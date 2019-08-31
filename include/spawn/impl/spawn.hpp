@@ -73,7 +73,7 @@ namespace detail {
     void operator()(T value)
     {
       *ec_ = boost::system::error_code();
-      *value_ = BOOST_ASIO_MOVE_CAST(T)(value);
+      *value_ = std::move(value);
       if (--*ready_ == 0)
         callee_->resume();
     }
@@ -81,7 +81,7 @@ namespace detail {
     void operator()(boost::system::error_code ec, T value)
     {
       *ec_ = ec;
-      *value_ = BOOST_ASIO_MOVE_CAST(T)(value);
+      *value_ = std::move(value);
       if (--*ready_ == 0)
         callee_->resume();
     }
@@ -194,7 +194,7 @@ namespace detail {
       if (--ready_ != 0)
         caller_.resume(); // suspend caller
       if (!out_ec_ && ec_) throw boost::system::system_error(ec_);
-      return BOOST_ASIO_MOVE_CAST(return_type)(value_);
+      return std::move(value_);
     }
 
   private:
@@ -329,14 +329,11 @@ namespace detail {
   struct spawn_data
   {
     template <typename Hand, typename Func, typename Stack>
-    spawn_data(BOOST_ASIO_MOVE_ARG(Hand) handler,
-        bool call_handler,
-        BOOST_ASIO_MOVE_ARG(Func) function,
-        BOOST_ASIO_MOVE_ARG(Stack) salloc)
-      : handler_(BOOST_ASIO_MOVE_CAST(Hand)(handler)),
+    spawn_data(Hand&& handler, bool call_handler, Func&& function, Stack&& salloc)
+      : handler_(std::forward<Hand>(handler)),
         call_handler_(call_handler),
-        function_(BOOST_ASIO_MOVE_CAST(Func)(function)),
-        salloc_(BOOST_ASIO_MOVE_CAST(Stack)(salloc))
+        function_(std::forward<Func>(function)),
+        salloc_(std::forward<Stack>(salloc))
     {
     }
     spawn_data(const spawn_data&) = delete;
@@ -356,20 +353,20 @@ namespace detail {
     {
       callee_.reset(new continuation_context());
       callee_->context_ = boost::context::callcc(
-          std::allocator_arg, BOOST_ASIO_MOVE_CAST(StackAllocator)(data_->salloc_),
-          [this] (BOOST_ASIO_MOVE_ARG(boost::context::continuation) c)
+          std::allocator_arg, std::move(data_->salloc_),
+          [this] (boost::context::continuation&& c)
           {
             std::shared_ptr<spawn_data<Handler, Function, StackAllocator> > data = data_;
-            data->caller_.context_ = BOOST_ASIO_MOVE_CAST(boost::context::continuation)(c);
+            data->caller_.context_ = std::move(c);
             const basic_yield_context<Handler> yh(callee_, data->caller_, data->handler_);
             (data->function_)(yh);
             if (data->call_handler_)
             {
               (data->handler_)();
             }
-            boost::context::continuation caller = BOOST_ASIO_MOVE_CAST(boost::context::continuation)(data->caller_.context_);
+            boost::context::continuation caller = std::move(data->caller_.context_);
             data.reset();
-            return BOOST_ASIO_MOVE_CAST(boost::context::continuation)(caller);
+            return std::move(caller);
           });
     }
 
@@ -400,8 +397,7 @@ namespace detail {
 } // namespace detail
 
 template <typename Function, typename StackAllocator>
-inline void spawn(BOOST_ASIO_MOVE_ARG(Function) function,
-    BOOST_ASIO_MOVE_ARG(StackAllocator) salloc,
+inline void spawn(Function&& function, StackAllocator&& salloc,
     typename enable_if<detail::is_stack_allocator<
       typename decay<StackAllocator>::type>::value>::type*)
 {
@@ -410,13 +406,11 @@ inline void spawn(BOOST_ASIO_MOVE_ARG(Function) function,
   typename associated_executor<function_type>::type ex(
       (get_associated_executor)(function));
 
-  boost::asio::spawn(ex, BOOST_ASIO_MOVE_CAST(Function)(function), salloc);
+  boost::asio::spawn(ex, std::forward<Function>(function), salloc);
 }
 
 template <typename Handler, typename Function, typename StackAllocator>
-void spawn(BOOST_ASIO_MOVE_ARG(Handler) handler,
-    BOOST_ASIO_MOVE_ARG(Function) function,
-    BOOST_ASIO_MOVE_ARG(StackAllocator) salloc,
+void spawn(Handler&& handler, Function&& function, StackAllocator&& salloc,
     typename enable_if<!is_executor<typename decay<Handler>::type>::value &&
       !is_convertible<Handler&, execution_context&>::value &&
       !detail::is_stack_allocator<typename decay<Function>::type>::value &&
@@ -434,17 +428,16 @@ void spawn(BOOST_ASIO_MOVE_ARG(Handler) handler,
   detail::spawn_helper<handler_type, function_type, StackAllocator> helper;
   helper.data_ = std::make_shared<
       detail::spawn_data<handler_type, function_type, StackAllocator> >(
-        BOOST_ASIO_MOVE_CAST(Handler)(handler), true,
-        BOOST_ASIO_MOVE_CAST(Function)(function),
-        BOOST_ASIO_MOVE_CAST(StackAllocator)(salloc));
+        std::forward<Handler>(handler), true,
+        std::forward<Function>(function),
+        std::forward<StackAllocator>(salloc));
 
   ex.dispatch(helper, a);
 }
 
 template <typename Handler, typename Function, typename StackAllocator>
 void spawn(basic_yield_context<Handler> ctx,
-    BOOST_ASIO_MOVE_ARG(Function) function,
-    BOOST_ASIO_MOVE_ARG(StackAllocator) salloc,
+    Function&& function, StackAllocator&& salloc,
     typename enable_if<detail::is_stack_allocator<
       typename decay<StackAllocator>::type>::value>::type*)
 {
@@ -461,62 +454,58 @@ void spawn(basic_yield_context<Handler> ctx,
   detail::spawn_helper<Handler, function_type, StackAllocator> helper;
   helper.data_ = std::make_shared<
       detail::spawn_data<Handler, function_type, StackAllocator> >(
-        BOOST_ASIO_MOVE_CAST(Handler)(handler), false,
-        BOOST_ASIO_MOVE_CAST(Function)(function),
-        BOOST_ASIO_MOVE_CAST(StackAllocator)(salloc));
+        std::forward<Handler>(handler), false,
+        std::forward<Function>(function),
+        std::forward<StackAllocator>(salloc));
 
   ex.dispatch(helper, a);
 }
 
 template <typename Function, typename Executor, typename StackAllocator>
 inline void spawn(const Executor& ex,
-    BOOST_ASIO_MOVE_ARG(Function) function,
-    BOOST_ASIO_MOVE_ARG(StackAllocator) salloc,
+    Function&& function, StackAllocator&& salloc,
     typename enable_if<is_executor<Executor>::value &&
       detail::is_stack_allocator<typename decay<StackAllocator>::type>::value>::type*)
 {
   boost::asio::spawn(boost::asio::strand<Executor>(ex),
-      BOOST_ASIO_MOVE_CAST(Function)(function),
-      BOOST_ASIO_MOVE_CAST(StackAllocator)(salloc));
+      std::forward<Function>(function),
+      std::forward<StackAllocator>(salloc));
 }
 
 template <typename Function, typename Executor, typename StackAllocator>
 inline void spawn(const strand<Executor>& ex,
-    BOOST_ASIO_MOVE_ARG(Function) function,
-    BOOST_ASIO_MOVE_ARG(StackAllocator) salloc,
+    Function&& function, StackAllocator&& salloc,
     typename enable_if<detail::is_stack_allocator<
       typename decay<StackAllocator>::type>::value>::type*)
 {
   boost::asio::spawn(boost::asio::bind_executor(
         ex, &detail::default_spawn_handler),
-      BOOST_ASIO_MOVE_CAST(Function)(function),
-      BOOST_ASIO_MOVE_CAST(StackAllocator)(salloc));
+      std::forward<Function>(function),
+      std::forward<StackAllocator>(salloc));
 }
 
 template <typename Function, typename StackAllocator>
 inline void spawn(const boost::asio::io_context::strand& s,
-    BOOST_ASIO_MOVE_ARG(Function) function,
-    BOOST_ASIO_MOVE_ARG(StackAllocator) salloc,
+    Function&& function, StackAllocator&& salloc,
     typename enable_if<detail::is_stack_allocator<
       typename decay<StackAllocator>::type>::value>::type*)
 {
   boost::asio::spawn(boost::asio::bind_executor(
         s, &detail::default_spawn_handler),
-      BOOST_ASIO_MOVE_CAST(Function)(function),
-      BOOST_ASIO_MOVE_CAST(StackAllocator)(salloc));
+      std::forward<Function>(function),
+      std::forward<StackAllocator>(salloc));
 }
 
 template <typename Function, typename ExecutionContext, typename StackAllocator>
 inline void spawn(ExecutionContext& ctx,
-    BOOST_ASIO_MOVE_ARG(Function) function,
-    BOOST_ASIO_MOVE_ARG(StackAllocator) salloc,
+    Function&& function, StackAllocator&& salloc,
     typename enable_if<is_convertible<
       ExecutionContext&, execution_context&>::value &&
       detail::is_stack_allocator<typename decay<StackAllocator>::type>::value>::type*)
 {
   boost::asio::spawn(ctx.get_executor(),
-      BOOST_ASIO_MOVE_CAST(Function)(function),
-      BOOST_ASIO_MOVE_CAST(StackAllocator)(salloc));
+      std::forward<Function>(function),
+      std::forward<StackAllocator>(salloc));
 }
 
 #endif // !defined(GENERATING_DOCUMENTATION)

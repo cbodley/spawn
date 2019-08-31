@@ -187,16 +187,14 @@ typedef basic_yield_context<
  * @param salloc Boost.Context uses stack allocators to create stacks.
  */
 template <typename Function, typename StackAllocator>
-void spawn(BOOST_ASIO_MOVE_ARG(Function) function,
-    BOOST_ASIO_MOVE_ARG(StackAllocator) salloc,
+void spawn(Function&& function, StackAllocator&& salloc,
     typename enable_if<detail::is_stack_allocator<
       typename decay<StackAllocator>::type>::value>::type* = 0);
 
 template <typename Function>
-void spawn(BOOST_ASIO_MOVE_ARG(Function) function)
+void spawn(Function&& function)
 {
-  spawn(BOOST_ASIO_MOVE_CAST(Function)(function),
-        boost::context::default_stack());
+  spawn(std::forward<Function>(function), boost::context::default_stack());
 }
 
 /// Start a new execution context (with new stack), calling the specified handler
@@ -216,23 +214,19 @@ void spawn(BOOST_ASIO_MOVE_ARG(Function) function)
  * @param salloc Boost.Context uses stack allocators to create stacks.
  */
 template <typename Handler, typename Function, typename StackAllocator>
-void spawn(BOOST_ASIO_MOVE_ARG(Handler) handler,
-    BOOST_ASIO_MOVE_ARG(Function) function,
-    BOOST_ASIO_MOVE_ARG(StackAllocator) salloc,
+void spawn(Handler&& handler, Function&& function, StackAllocator&& salloc,
     typename enable_if<!is_executor<typename decay<Handler>::type>::value &&
       !is_convertible<Handler&, execution_context&>::value &&
       !detail::is_stack_allocator<typename decay<Function>::type>::value &&
       detail::is_stack_allocator<typename decay<StackAllocator>::type>::value>::type* = 0);
 
 template <typename Handler, typename Function>
-void spawn(BOOST_ASIO_MOVE_ARG(Handler) handler,
-    BOOST_ASIO_MOVE_ARG(Function) function,
+void spawn(Handler&& handler, Function&& function,
     typename enable_if<!is_executor<typename decay<Handler>::type>::value &&
       !detail::is_stack_allocator<typename decay<Function>::type>::value &&
       !is_convertible<Handler&, execution_context&>::value>::type* = 0)
 {
-  spawn(BOOST_ASIO_MOVE_CAST(Handler)(handler),
-        BOOST_ASIO_MOVE_CAST(Function)(function),
+  spawn(std::forward<Handler>(handler), std::forward<Function>(function),
         boost::context::default_stack());
 }
 
@@ -254,17 +248,14 @@ void spawn(BOOST_ASIO_MOVE_ARG(Handler) handler,
  */
 template <typename Handler, typename Function, typename StackAllocator>
 void spawn(basic_yield_context<Handler> ctx,
-    BOOST_ASIO_MOVE_ARG(Function) function,
-    BOOST_ASIO_MOVE_ARG(StackAllocator) salloc,
+    Function&& function, StackAllocator&& salloc,
     typename enable_if<detail::is_stack_allocator<
       typename decay<StackAllocator>::type>::value>::type* = 0);
 
 template <typename Handler, typename Function>
-void spawn(basic_yield_context<Handler> ctx,
-    BOOST_ASIO_MOVE_ARG(Function) function)
+void spawn(basic_yield_context<Handler> ctx, Function&& function)
 {
-  spawn(ctx, BOOST_ASIO_MOVE_CAST(Function)(function),
-        boost::context::default_stack());
+  spawn(ctx, std::forward<Function>(function), boost::context::default_stack());
 }
 
 /// Start a new execution context (with new stack) that executes on a given executor.
@@ -281,19 +272,15 @@ void spawn(basic_yield_context<Handler> ctx,
  * @param salloc Boost.Context uses stack allocators to create stacks.
  */
 template <typename Function, typename Executor, typename StackAllocator>
-void spawn(const Executor& ex,
-    BOOST_ASIO_MOVE_ARG(Function) function,
-    BOOST_ASIO_MOVE_ARG(StackAllocator) salloc,
+void spawn(const Executor& ex, Function&& function, StackAllocator&& salloc,
     typename enable_if<is_executor<Executor>::value &&
       detail::is_stack_allocator<typename decay<StackAllocator>::type>::value>::type* = 0);
 
 template <typename Function, typename Executor>
-void spawn(const Executor& ex,
-    BOOST_ASIO_MOVE_ARG(Function) function,
+void spawn(const Executor& ex, Function&& function,
     typename enable_if<is_executor<Executor>::value>::type* = 0)
 {
-  spawn(ex, BOOST_ASIO_MOVE_CAST(Function)(function),
-        boost::context::default_stack());
+  spawn(ex, std::forward<Function>(function), boost::context::default_stack());
 }
 
 /// Start a new execution context (with new stack) that executes on a given strand.
@@ -310,17 +297,14 @@ void spawn(const Executor& ex,
  */
 template <typename Function, typename Executor, typename StackAllocator>
 void spawn(const strand<Executor>& ex,
-    BOOST_ASIO_MOVE_ARG(Function) function,
-    BOOST_ASIO_MOVE_ARG(StackAllocator) salloc,
+    Function&& function, StackAllocator&& salloc,
     typename enable_if<detail::is_stack_allocator<
       typename decay<StackAllocator>::type>::value>::type* = 0);
 
 template <typename Function, typename Executor>
-void spawn(const strand<Executor>& ex,
-    BOOST_ASIO_MOVE_ARG(Function) function)
+void spawn(const strand<Executor>& ex, Function&& function)
 {
-  spawn(ex, BOOST_ASIO_MOVE_CAST(Function)(function),
-        boost::context::default_stack());
+  spawn(ex, std::forward<Function>(function), boost::context::default_stack());
 }
 
 /// Start a new execution context (with new stack) that executes in the context of a strand.
@@ -339,17 +323,14 @@ void spawn(const strand<Executor>& ex,
  */
 template <typename Function, typename StackAllocator>
 void spawn(const boost::asio::io_context::strand& s,
-    BOOST_ASIO_MOVE_ARG(Function) function,
-    BOOST_ASIO_MOVE_ARG(StackAllocator) salloc,
+    Function&& function, StackAllocator&& salloc,
     typename enable_if<detail::is_stack_allocator<
       typename decay<StackAllocator>::type>::value>::type* = 0);
 
 template <typename Function>
-void spawn(const boost::asio::io_context::strand& s,
-    BOOST_ASIO_MOVE_ARG(Function) function)
+void spawn(const boost::asio::io_context::strand& s, Function&& function)
 {
-  spawn(s, BOOST_ASIO_MOVE_CAST(Function)(function),
-        boost::context::default_stack());
+  spawn(s, std::forward<Function>(function), boost::context::default_stack());
 }
 
 /// Start a new stackful context (with new stack) that executes on a given execution context.
@@ -367,21 +348,17 @@ void spawn(const boost::asio::io_context::strand& s,
  * @param salloc Boost.Context uses stack allocators to create stacks.
  */
 template <typename Function, typename ExecutionContext, typename StackAllocator>
-void spawn(ExecutionContext& ctx,
-    BOOST_ASIO_MOVE_ARG(Function) function,
-    BOOST_ASIO_MOVE_ARG(StackAllocator) salloc,
+void spawn(ExecutionContext& ctx, Function&& function, StackAllocator&& salloc,
     typename enable_if<is_convertible<
       ExecutionContext&, execution_context&>::value &&
       detail::is_stack_allocator<typename decay<StackAllocator>::type>::value>::type* = 0);
 
 template <typename Function, typename ExecutionContext>
-void spawn(ExecutionContext& ctx,
-    BOOST_ASIO_MOVE_ARG(Function) function,
+void spawn(ExecutionContext& ctx, Function&& function,
     typename enable_if<is_convertible<
       ExecutionContext&, execution_context&>::value>::type* = 0)
 {
-  spawn(ctx, BOOST_ASIO_MOVE_CAST(Function)(function),
-        boost::context::default_stack());
+  spawn(ctx, std::forward<Function>(function), boost::context::default_stack());
 }
 
 /*@}*/
