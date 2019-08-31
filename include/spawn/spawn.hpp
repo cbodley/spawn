@@ -10,12 +10,7 @@
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
 
-#ifndef BOOST_ASIO_SPAWN_HPP
-#define BOOST_ASIO_SPAWN_HPP
-
-#if defined(_MSC_VER) && (_MSC_VER >= 1200)
-# pragma once
-#endif // defined(_MSC_VER) && (_MSC_VER >= 1200)
+#pragma once
 
 #include <memory>
 
@@ -25,8 +20,6 @@
 
 #include <spawn/detail/net.hpp>
 #include <spawn/detail/is_stack_allocator.hpp>
-
-#include <boost/asio/detail/push_options.hpp>
 
 namespace spawn {
 namespace detail {
@@ -357,8 +350,4 @@ void spawn(ExecutionContext& ctx, Function&& function,
 
 } // namespace spawn
 
-#include <boost/asio/detail/pop_options.hpp>
-
 #include <spawn/impl/spawn.hpp>
-
-#endif // BOOST_ASIO_SPAWN_HPP

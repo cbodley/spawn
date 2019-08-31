@@ -8,19 +8,11 @@
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
 
-#ifndef BOOST_ASIO_DETAIL_IS_STACK_ALLOCATOR_HPP
-#define BOOST_ASIO_DETAIL_IS_STACK_ALLOCATOR_HPP
-
-#if defined(_MSC_VER) && (_MSC_VER >= 1200)
-# pragma once
-#endif // defined(_MSC_VER) && (_MSC_VER >= 1200)
+#pragma once
 
 #include <type_traits>
 
 #include <boost/type_traits/make_void.hpp>
-#include <boost/asio/detail/config.hpp>
-
-#include <boost/asio/detail/push_options.hpp>
 
 namespace spawn::detail {
 
@@ -36,7 +28,3 @@ struct is_stack_allocator<T, boost::void_t<decltype(
     )>> : std::true_type {};
 
 } // namespace spawn::detail
-
-#include <boost/asio/detail/pop_options.hpp>
-
-#endif // BOOST_ASIO_DETAIL_IS_STACK_ALLOCATOR_HPP
