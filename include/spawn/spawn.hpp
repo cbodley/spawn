@@ -19,17 +19,11 @@
 
 #include <memory>
 
-#include <boost/asio/detail/config.hpp>
-#include <boost/asio/bind_executor.hpp>
-#include <boost/asio/detail/wrapped_handler.hpp>
-#include <boost/asio/executor.hpp>
-#include <boost/asio/io_context.hpp>
-#include <boost/asio/is_executor.hpp>
-#include <boost/asio/strand.hpp>
-
 #include <boost/context/fixedsize_stack.hpp>
 #include <boost/context/segmented_stack.hpp>
+#include <boost/system/system_error.hpp>
 
+#include <spawn/detail/net.hpp>
 #include <spawn/detail/is_stack_allocator.hpp>
 
 #include <boost/asio/detail/push_options.hpp>
@@ -134,7 +128,7 @@ private:
 typedef basic_yield_context<unspecified> yield_context;
 #else // defined(GENERATING_DOCUMENTATION)
 typedef basic_yield_context<
-  executor_binder<void(*)(), executor> > yield_context;
+  detail::net::executor_binder<void(*)(), detail::net::executor> > yield_context;
 #endif // defined(GENERATING_DOCUMENTATION)
 
 /**
@@ -214,16 +208,16 @@ void spawn(Function&& function)
  */
 template <typename Handler, typename Function, typename StackAllocator>
 void spawn(Handler&& handler, Function&& function, StackAllocator&& salloc,
-    typename std::enable_if<!is_executor<typename std::decay<Handler>::type>::value &&
-      !std::is_convertible<Handler&, execution_context&>::value &&
+    typename std::enable_if<!detail::net::is_executor<typename std::decay<Handler>::type>::value &&
+      !std::is_convertible<Handler&, detail::net::execution_context&>::value &&
       !detail::is_stack_allocator<typename std::decay<Function>::type>::value &&
       detail::is_stack_allocator<typename std::decay<StackAllocator>::type>::value>::type* = 0);
 
 template <typename Handler, typename Function>
 void spawn(Handler&& handler, Function&& function,
-    typename std::enable_if<!is_executor<typename std::decay<Handler>::type>::value &&
+    typename std::enable_if<!detail::net::is_executor<typename std::decay<Handler>::type>::value &&
       !detail::is_stack_allocator<typename std::decay<Function>::type>::value &&
-      !std::is_convertible<Handler&, execution_context&>::value>::type* = 0)
+      !std::is_convertible<Handler&, detail::net::execution_context&>::value>::type* = 0)
 {
   spawn(std::forward<Handler>(handler), std::forward<Function>(function),
         boost::context::default_stack());
@@ -272,12 +266,12 @@ void spawn(basic_yield_context<Handler> ctx, Function&& function)
  */
 template <typename Function, typename Executor, typename StackAllocator>
 void spawn(const Executor& ex, Function&& function, StackAllocator&& salloc,
-    typename std::enable_if<is_executor<Executor>::value &&
+    typename std::enable_if<detail::net::is_executor<Executor>::value &&
       detail::is_stack_allocator<typename std::decay<StackAllocator>::type>::value>::type* = 0);
 
 template <typename Function, typename Executor>
 void spawn(const Executor& ex, Function&& function,
-    typename std::enable_if<is_executor<Executor>::value>::type* = 0)
+    typename std::enable_if<detail::net::is_executor<Executor>::value>::type* = 0)
 {
   spawn(ex, std::forward<Function>(function), boost::context::default_stack());
 }
@@ -348,13 +342,14 @@ void spawn(const boost::asio::io_context::strand& s, Function&& function)
  */
 template <typename Function, typename ExecutionContext, typename StackAllocator>
 void spawn(ExecutionContext& ctx, Function&& function, StackAllocator&& salloc,
-    typename std::enable_if<std::is_convertible<ExecutionContext&, execution_context&>::value &&
+    typename std::enable_if<std::is_convertible<
+      ExecutionContext&, detail::net::execution_context&>::value &&
       detail::is_stack_allocator<typename std::decay<StackAllocator>::type>::value>::type* = 0);
 
 template <typename Function, typename ExecutionContext>
 void spawn(ExecutionContext& ctx, Function&& function,
     typename std::enable_if<std::is_convertible<
-      ExecutionContext&, execution_context&>::value>::type* = 0)
+      ExecutionContext&, detail::net::execution_context&>::value>::type* = 0)
 {
   spawn(ctx, std::forward<Function>(function), boost::context::default_stack());
 }
