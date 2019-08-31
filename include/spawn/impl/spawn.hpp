@@ -30,15 +30,7 @@
 #include <boost/asio/detail/noncopyable.hpp>
 #include <boost/asio/detail/type_traits.hpp>
 #include <boost/system/system_error.hpp>
-
-#include <boost/context/detail/config.hpp>
-#if !defined(BOOST_CONTEXT_NO_CXX11)
-# include <boost/context/continuation.hpp>
-#else
-# include <boost/context/detail/fcontext.hpp>
-# include <boost/context/fixedsize_stack.hpp>
-# include <boost/context/segmented_stack.hpp>
-#endif
+#include <boost/context/continuation.hpp>
 
 #include <spawn/detail/is_stack_allocator.hpp>
 
@@ -48,7 +40,6 @@ namespace boost {
 namespace asio {
 namespace detail {
 
-#if !defined(BOOST_CONTEXT_NO_CXX11)
   class continuation_context
   {
   public:
@@ -64,27 +55,6 @@ namespace detail {
       context_ = context_.resume();
     }
   };
-#else
-  class continuation_context
-  {
-  public:
-    boost::context::detail::fcontext_t context_;
-
-    continuation_context()
-      : context_(0)
-    {
-    }
-
-    virtual ~continuation_context()
-    {
-    }
-
-    void resume()
-    {
-      context_ = boost::context::detail::jump_fcontext(context_, 0).fctx;
-    }
-  };
-#endif
 
   template <typename Handler, typename T>
   class coro_handler
@@ -375,12 +345,8 @@ namespace detail {
     Function function_;
     StackAllocator salloc_;
     continuation_context caller_;
-#if defined(BOOST_CONTEXT_NO_CXX11)
-    weak_ptr<continuation_context> callee_;
-#endif
   };
 
-#if !defined(BOOST_CONTEXT_NO_CXX11)
   template <typename Handler, typename Function, typename StackAllocator>
   struct spawn_helper
   {
@@ -408,64 +374,6 @@ namespace detail {
     std::shared_ptr<continuation_context> callee_;
     std::shared_ptr<spawn_data<Handler, Function, StackAllocator> > data_;
   };
-#else
-  template <typename StackAllocator>
-  struct fcontext_continuation_context : public continuation_context
-  {
-    fcontext_continuation_context(BOOST_ASIO_MOVE_ARG(StackAllocator) salloc,
-        boost::context::stack_context const& sctx)
-      : salloc_(BOOST_ASIO_MOVE_CAST(StackAllocator)(salloc)),
-        sctx_(sctx)
-    {
-    }
-
-    ~fcontext_continuation_context() BOOST_NOEXCEPT
-    {
-      salloc_.deallocate(sctx_);
-    }
-
-    StackAllocator salloc_;
-    boost::context::stack_context sctx_;
-  };
-
-  template <typename Handler, typename Function, typename StackAllocator>
-  void context_entry(boost::context::detail::transfer_t t) BOOST_NOEXCEPT
-  {
-    shared_ptr<spawn_data<Handler, Function, StackAllocator> > data(
-        *static_cast<shared_ptr<spawn_data<Handler, Function, StackAllocator> >*>(t.data));
-    data->caller_.context_ = t.fctx;
-    {
-      const basic_yield_context<Handler> yh(data->callee_, data->caller_, data->handler_);
-      (data->function_)(yh);
-    }
-    if (data->call_handler_)
-    {
-      (data->handler_)();
-    }
-    boost::context::detail::fcontext_t caller = data->caller_.context_;
-    data.reset();
-    boost::context::detail::jump_fcontext(caller, 0);
-  }
-
-  template <typename Handler, typename Function, typename StackAllocator>
-  struct spawn_helper
-  {
-    void operator()()
-    {
-      boost::context::stack_context sctx = data_->salloc_.allocate();
-      shared_ptr<continuation_context> callee(
-          new fcontext_continuation_context<StackAllocator>(
-              BOOST_ASIO_MOVE_CAST(StackAllocator)(data_->salloc_), sctx));
-      data_->callee_ = callee;
-      callee->context_ = boost::context::detail::make_fcontext(
-          sctx.sp, sctx.size, &context_entry<Handler, Function, StackAllocator>);
-      callee->context_ = boost::context::detail::jump_fcontext(
-          callee->context_, & data_).fctx;
-    }
-
-    shared_ptr<spawn_data<Handler, Function, StackAllocator> > data_;
-  };
-#endif
 
   template <typename Function, typename Handler,
       typename Function1, typename StackAllocator>
