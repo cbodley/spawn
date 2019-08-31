@@ -22,9 +22,7 @@
 
 #include <boost/asio/detail/push_options.hpp>
 
-namespace boost {
-namespace asio {
-namespace detail {
+namespace spawn::detail {
 
 template <typename T, typename = void>
 struct is_stack_allocator : std::false_type {};
@@ -37,9 +35,7 @@ struct is_stack_allocator<T, boost::void_t<decltype(
     std::declval<T&>().deallocate(std::declval<boost::context::stack_context&>())
     )>> : std::true_type {};
 
-} // namespace detail
-} // namespace asio
-} // namespace boost
+} // namespace spawn::detail
 
 #include <boost/asio/detail/pop_options.hpp>
 

@@ -28,8 +28,7 @@
 
 #include <boost/asio/detail/push_options.hpp>
 
-namespace boost {
-namespace asio {
+namespace spawn {
 namespace detail {
 
   class continuation_context;
@@ -132,7 +131,7 @@ typedef basic_yield_context<
 #endif // defined(GENERATING_DOCUMENTATION)
 
 /**
- * @defgroup spawn boost::asio::spawn
+ * @defgroup spawn spawn::spawn
  *
  * @brief Start a new execution context with a new stack.
  *
@@ -141,11 +140,11 @@ typedef basic_yield_context<
  * implement asynchronous logic in a synchronous manner, as illustrated
  * by the following example:
  *
- * @code boost::asio::spawn(my_strand, do_echo);
+ * @code spawn::spawn(my_strand, do_echo);
  *
  * // ...
  *
- * void do_echo(boost::asio::yield_context yield)
+ * void do_echo(spawn::yield_context yield)
  * {
  *   try
  *   {
@@ -289,13 +288,13 @@ void spawn(const Executor& ex, Function&& function,
  * @param salloc Boost.Context uses stack allocators to create stacks.
  */
 template <typename Function, typename Executor, typename StackAllocator>
-void spawn(const strand<Executor>& ex,
+void spawn(const detail::net::strand<Executor>& ex,
     Function&& function, StackAllocator&& salloc,
     typename std::enable_if<detail::is_stack_allocator<
       typename std::decay<StackAllocator>::type>::value>::type* = 0);
 
 template <typename Function, typename Executor>
-void spawn(const strand<Executor>& ex, Function&& function)
+void spawn(const detail::net::strand<Executor>& ex, Function&& function)
 {
   spawn(ex, std::forward<Function>(function), boost::context::default_stack());
 }
@@ -356,8 +355,7 @@ void spawn(ExecutionContext& ctx, Function&& function,
 
 /*@}*/
 
-} // namespace asio
-} // namespace boost
+} // namespace spawn
 
 #include <boost/asio/detail/pop_options.hpp>
 

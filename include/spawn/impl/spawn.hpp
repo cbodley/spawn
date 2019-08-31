@@ -19,7 +19,7 @@
 
 #include <memory>
 
-#include <boost/asio/detail/atomic_count.hpp>
+#include <boost/asio/detail/atomic_count.hpp> // XXX
 #include <boost/system/system_error.hpp>
 #include <boost/context/continuation.hpp>
 
@@ -28,9 +28,7 @@
 
 #include <boost/asio/detail/push_options.hpp>
 
-namespace boost {
-namespace asio {
-namespace detail {
+namespace spawn::detail {
 
   class continuation_context
   {
@@ -82,7 +80,7 @@ namespace detail {
     std::shared_ptr<continuation_context> callee_;
     continuation_context& caller_;
     Handler handler_;
-    atomic_count* ready_;
+    boost::asio::detail::atomic_count* ready_;
     boost::system::error_code* ec_;
     T* value_;
   };
@@ -118,7 +116,7 @@ namespace detail {
     std::shared_ptr<continuation_context> callee_;
     continuation_context& caller_;
     Handler handler_;
-    atomic_count* ready_;
+    boost::asio::detail::atomic_count* ready_;
     boost::system::error_code* ec_;
   };
 
@@ -154,7 +152,7 @@ namespace detail {
   private:
     completion_handler_type& handler_;
     continuation_context& caller_;
-    atomic_count ready_;
+    boost::asio::detail::atomic_count ready_;
     boost::system::error_code* out_ec_;
     boost::system::error_code ec_;
     return_type value_;
@@ -190,75 +188,76 @@ namespace detail {
   private:
     completion_handler_type& handler_;
     continuation_context& caller_;
-    atomic_count ready_;
+    boost::asio::detail::atomic_count ready_;
     boost::system::error_code* out_ec_;
     boost::system::error_code ec_;
   };
 
-} // namespace detail
+} // namespace spawn::detail
 
 #if !defined(GENERATING_DOCUMENTATION)
+namespace SPAWN_NET_NAMESPACE {
 
 template <typename Handler, typename ReturnType>
-class async_result<basic_yield_context<Handler>, ReturnType()>
-  : public detail::coro_async_result<Handler, void>
+class async_result<spawn::basic_yield_context<Handler>, ReturnType()>
+  : public spawn::detail::coro_async_result<Handler, void>
 {
 public:
   explicit async_result(
-    typename detail::coro_async_result<Handler,
+    typename spawn::detail::coro_async_result<Handler,
       void>::completion_handler_type& h)
-    : detail::coro_async_result<Handler, void>(h)
+    : spawn::detail::coro_async_result<Handler, void>(h)
   {
   }
 };
 
 template <typename Handler, typename ReturnType, typename Arg1>
-class async_result<basic_yield_context<Handler>, ReturnType(Arg1)>
-  : public detail::coro_async_result<Handler, typename std::decay<Arg1>::type>
+class async_result<spawn::basic_yield_context<Handler>, ReturnType(Arg1)>
+  : public spawn::detail::coro_async_result<Handler, typename std::decay<Arg1>::type>
 {
 public:
   explicit async_result(
-    typename detail::coro_async_result<Handler,
+    typename spawn::detail::coro_async_result<Handler,
       typename std::decay<Arg1>::type>::completion_handler_type& h)
-    : detail::coro_async_result<Handler, typename std::decay<Arg1>::type>(h)
+    : spawn::detail::coro_async_result<Handler, typename std::decay<Arg1>::type>(h)
   {
   }
 };
 
 template <typename Handler, typename ReturnType>
-class async_result<basic_yield_context<Handler>,
+class async_result<spawn::basic_yield_context<Handler>,
     ReturnType(boost::system::error_code)>
-  : public detail::coro_async_result<Handler, void>
+  : public spawn::detail::coro_async_result<Handler, void>
 {
 public:
   explicit async_result(
-    typename detail::coro_async_result<Handler,
+    typename spawn::detail::coro_async_result<Handler,
       void>::completion_handler_type& h)
-    : detail::coro_async_result<Handler, void>(h)
+    : spawn::detail::coro_async_result<Handler, void>(h)
   {
   }
 };
 
 template <typename Handler, typename ReturnType, typename Arg2>
-class async_result<basic_yield_context<Handler>,
+class async_result<spawn::basic_yield_context<Handler>,
     ReturnType(boost::system::error_code, Arg2)>
-  : public detail::coro_async_result<Handler, typename std::decay<Arg2>::type>
+  : public spawn::detail::coro_async_result<Handler, typename std::decay<Arg2>::type>
 {
 public:
   explicit async_result(
-    typename detail::coro_async_result<Handler,
+    typename spawn::detail::coro_async_result<Handler,
       typename std::decay<Arg2>::type>::completion_handler_type& h)
-    : detail::coro_async_result<Handler, typename std::decay<Arg2>::type>(h)
+    : spawn::detail::coro_async_result<Handler, typename std::decay<Arg2>::type>(h)
   {
   }
 };
 
 template <typename Handler, typename T, typename Allocator>
-struct associated_allocator<detail::coro_handler<Handler, T>, Allocator>
+struct associated_allocator<spawn::detail::coro_handler<Handler, T>, Allocator>
 {
   typedef associated_allocator_t<Handler, Allocator> type;
 
-  static type get(const detail::coro_handler<Handler, T>& h,
+  static type get(const spawn::detail::coro_handler<Handler, T>& h,
       const Allocator& a = Allocator()) BOOST_ASIO_NOEXCEPT
   {
     return associated_allocator<Handler, Allocator>::get(h.handler_, a);
@@ -266,17 +265,20 @@ struct associated_allocator<detail::coro_handler<Handler, T>, Allocator>
 };
 
 template <typename Handler, typename T, typename Executor>
-struct associated_executor<detail::coro_handler<Handler, T>, Executor>
+struct associated_executor<spawn::detail::coro_handler<Handler, T>, Executor>
 {
   typedef associated_executor_t<Handler, Executor> type;
 
-  static type get(const detail::coro_handler<Handler, T>& h,
+  static type get(const spawn::detail::coro_handler<Handler, T>& h,
       const Executor& ex = Executor()) BOOST_ASIO_NOEXCEPT
   {
     return associated_executor<Handler, Executor>::get(h.handler_, ex);
   }
 };
 
+} // namespace SPAWN_NET_NAMESPACE
+
+namespace spawn {
 namespace detail {
 
   template <typename Handler, typename Function, typename StackAllocator>
@@ -339,13 +341,13 @@ inline void spawn(Function&& function, StackAllocator&& salloc,
 {
   auto ex = detail::net::get_associated_executor(function);
 
-  boost::asio::spawn(ex, std::forward<Function>(function), salloc);
+  spawn(ex, std::forward<Function>(function), salloc);
 }
 
 template <typename Handler, typename Function, typename StackAllocator>
 void spawn(Handler&& handler, Function&& function, StackAllocator&& salloc,
     typename std::enable_if<!detail::net::is_executor<typename std::decay<Handler>::type>::value &&
-      !std::is_convertible<Handler&, execution_context&>::value &&
+      !std::is_convertible<Handler&, detail::net::execution_context&>::value &&
       !detail::is_stack_allocator<typename std::decay<Function>::type>::value &&
       detail::is_stack_allocator<typename std::decay<StackAllocator>::type>::value>::type*)
 {
@@ -394,18 +396,18 @@ inline void spawn(const Executor& ex,
     typename std::enable_if<detail::net::is_executor<Executor>::value &&
       detail::is_stack_allocator<typename std::decay<StackAllocator>::type>::value>::type*)
 {
-  boost::asio::spawn(detail::net::strand<Executor>(ex),
+  spawn(detail::net::strand<Executor>(ex),
       std::forward<Function>(function),
       std::forward<StackAllocator>(salloc));
 }
 
 template <typename Function, typename Executor, typename StackAllocator>
-inline void spawn(const strand<Executor>& ex,
+inline void spawn(const detail::net::strand<Executor>& ex,
     Function&& function, StackAllocator&& salloc,
     typename std::enable_if<detail::is_stack_allocator<
       typename std::decay<StackAllocator>::type>::value>::type*)
 {
-  boost::asio::spawn(boost::asio::bind_executor(
+  spawn(boost::asio::bind_executor(
         ex, &detail::default_spawn_handler),
       std::forward<Function>(function),
       std::forward<StackAllocator>(salloc));
@@ -417,7 +419,7 @@ inline void spawn(const boost::asio::io_context::strand& s,
     typename std::enable_if<detail::is_stack_allocator<
       typename std::decay<StackAllocator>::type>::value>::type*)
 {
-  boost::asio::spawn(boost::asio::bind_executor(
+  spawn(boost::asio::bind_executor(
         s, &detail::default_spawn_handler),
       std::forward<Function>(function),
       std::forward<StackAllocator>(salloc));
@@ -426,18 +428,18 @@ inline void spawn(const boost::asio::io_context::strand& s,
 template <typename Function, typename ExecutionContext, typename StackAllocator>
 inline void spawn(ExecutionContext& ctx,
     Function&& function, StackAllocator&& salloc,
-    typename std::enable_if<std::is_convertible<ExecutionContext&, execution_context&>::value &&
+    typename std::enable_if<std::is_convertible<
+      ExecutionContext&, detail::net::execution_context&>::value &&
       detail::is_stack_allocator<typename std::decay<StackAllocator>::type>::value>::type*)
 {
-  boost::asio::spawn(ctx.get_executor(),
+  spawn(ctx.get_executor(),
       std::forward<Function>(function),
       std::forward<StackAllocator>(salloc));
 }
 
 #endif // !defined(GENERATING_DOCUMENTATION)
 
-} // namespace asio
-} // namespace boost
+} // namespace spawn
 
 #include <boost/asio/detail/pop_options.hpp>
 
