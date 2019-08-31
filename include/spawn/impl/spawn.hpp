@@ -12,9 +12,9 @@
 
 #pragma once
 
+#include <atomic>
 #include <memory>
 
-#include <boost/asio/detail/atomic_count.hpp> // XXX
 #include <boost/system/system_error.hpp>
 #include <boost/context/continuation.hpp>
 
@@ -73,7 +73,7 @@ namespace spawn::detail {
     std::shared_ptr<continuation_context> callee_;
     continuation_context& caller_;
     Handler handler_;
-    boost::asio::detail::atomic_count* ready_;
+    std::atomic<long>* ready_;
     boost::system::error_code* ec_;
     T* value_;
   };
@@ -109,7 +109,7 @@ namespace spawn::detail {
     std::shared_ptr<continuation_context> callee_;
     continuation_context& caller_;
     Handler handler_;
-    boost::asio::detail::atomic_count* ready_;
+    std::atomic<long>* ready_;
     boost::system::error_code* ec_;
   };
 
@@ -145,7 +145,7 @@ namespace spawn::detail {
   private:
     completion_handler_type& handler_;
     continuation_context& caller_;
-    boost::asio::detail::atomic_count ready_;
+    std::atomic<long> ready_;
     boost::system::error_code* out_ec_;
     boost::system::error_code ec_;
     return_type value_;
@@ -181,7 +181,7 @@ namespace spawn::detail {
   private:
     completion_handler_type& handler_;
     continuation_context& caller_;
-    boost::asio::detail::atomic_count ready_;
+    std::atomic<long> ready_;
     boost::system::error_code* out_ec_;
     boost::system::error_code ec_;
   };
