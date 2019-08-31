@@ -251,7 +251,7 @@ struct associated_allocator<spawn::detail::coro_handler<Handler, T>, Allocator>
   typedef associated_allocator_t<Handler, Allocator> type;
 
   static type get(const spawn::detail::coro_handler<Handler, T>& h,
-      const Allocator& a = Allocator()) BOOST_ASIO_NOEXCEPT
+      const Allocator& a = Allocator()) noexcept
   {
     return associated_allocator<Handler, Allocator>::get(h.handler_, a);
   }
@@ -263,7 +263,7 @@ struct associated_executor<spawn::detail::coro_handler<Handler, T>, Executor>
   typedef associated_executor_t<Handler, Executor> type;
 
   static type get(const spawn::detail::coro_handler<Handler, T>& h,
-      const Executor& ex = Executor()) BOOST_ASIO_NOEXCEPT
+      const Executor& ex = Executor()) noexcept
   {
     return associated_executor<Handler, Executor>::get(h.handler_, ex);
   }
