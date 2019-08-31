@@ -4,6 +4,7 @@
 //
 // Copyright (c) 2003-2019 Christopher M. Kohlhoff (chris at kohlhoff dot com)
 // Copyright (c) 2017 Oliver Kowalke (oliver dot kowalke at gmail dot com)
+// Copyright (c) 2019 Casey Bodley (cbodley at redhat dot com)
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -20,7 +21,6 @@
 
 #include <boost/asio/detail/config.hpp>
 #include <boost/asio/bind_executor.hpp>
-#include <boost/asio/detail/noncopyable.hpp>
 #include <boost/asio/detail/type_traits.hpp>
 #include <boost/asio/detail/wrapped_handler.hpp>
 #include <boost/asio/executor.hpp>

@@ -4,6 +4,7 @@
 //
 // Copyright (c) 2003-2019 Christopher M. Kohlhoff (chris at kohlhoff dot com)
 // Copyright (c) 2017 Oliver Kowalke (oliver dot kowalke at gmail dot com)
+// Copyright (c) 2019 Casey Bodley (cbodley at redhat dot com)
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -27,7 +28,6 @@
 #include <boost/asio/detail/handler_alloc_helpers.hpp>
 #include <boost/asio/detail/handler_cont_helpers.hpp>
 #include <boost/asio/detail/handler_invoke_helpers.hpp>
-#include <boost/asio/detail/noncopyable.hpp>
 #include <boost/asio/detail/type_traits.hpp>
 #include <boost/system/system_error.hpp>
 #include <boost/context/continuation.hpp>
@@ -326,7 +326,7 @@ struct associated_executor<detail::coro_handler<Handler, T>, Executor>
 namespace detail {
 
   template <typename Handler, typename Function, typename StackAllocator>
-  struct spawn_data : private noncopyable
+  struct spawn_data
   {
     template <typename Hand, typename Func, typename Stack>
     spawn_data(BOOST_ASIO_MOVE_ARG(Hand) handler,
@@ -339,6 +339,8 @@ namespace detail {
         salloc_(BOOST_ASIO_MOVE_CAST(Stack)(salloc))
     {
     }
+    spawn_data(const spawn_data&) = delete;
+    spawn_data& operator=(const spawn_data&) = delete;
 
     Handler handler_;
     bool call_handler_;
