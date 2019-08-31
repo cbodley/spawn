@@ -404,17 +404,6 @@ auto spawn(const detail::net::strand<Executor>& ex,
       std::forward<StackAllocator>(salloc));
 }
 
-template <typename Function, typename StackAllocator>
-auto spawn(const boost::asio::io_context::strand& s,
-           Function&& function, StackAllocator&& salloc)
-  -> typename std::enable_if<detail::is_stack_allocator<
-       typename std::decay<StackAllocator>::type>::value>::type
-{
-  spawn(bind_executor(s, &detail::default_spawn_handler),
-      std::forward<Function>(function),
-      std::forward<StackAllocator>(salloc));
-}
-
 template <typename Function, typename ExecutionContext, typename StackAllocator>
 auto spawn(ExecutionContext& ctx, Function&& function, StackAllocator&& salloc)
   -> typename std::enable_if<std::is_convertible<

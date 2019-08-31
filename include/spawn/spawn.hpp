@@ -263,26 +263,6 @@ auto spawn(const detail::net::strand<Executor>& ex,
   -> typename std::enable_if<detail::is_stack_allocator<
        typename std::decay<StackAllocator>::type>::value>::type;
 
-/// Start a new execution context (with new stack) that executes in the context of a strand.
-/**
- * This function is used to launch a new execution context on behalf of callcc()
- * and continuation.
- *
- * @param s Identifies a strand. By starting multiple continuations on the
- * same strand, the implementation ensures that none of those continuations can
- * execute simultaneously.
- *
- * @param function The continuation function. The function must have the signature:
- * @code void function(yield_context yield); @endcode
- *
- * @param salloc Boost.Context uses stack allocators to create stacks.
- */
-template <typename Function, typename StackAllocator = boost::context::default_stack>
-auto spawn(const boost::asio::io_context::strand& s, Function&& function,
-           StackAllocator&& salloc = StackAllocator())
-  -> typename std::enable_if<detail::is_stack_allocator<
-       typename std::decay<StackAllocator>::type>::value>::type;
-
 /// Start a new stackful context (with new stack) that executes on a given execution context.
 /**
  * This function is used to launch a new execution context on behalf of callcc()
