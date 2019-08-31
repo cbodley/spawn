@@ -117,8 +117,8 @@ namespace spawn::detail {
   class coro_async_result
   {
   public:
-    typedef coro_handler<Handler, T> completion_handler_type;
-    typedef T return_type;
+    using completion_handler_type = coro_handler<Handler, T>;
+    using return_type = T;
 
     explicit coro_async_result(completion_handler_type& h)
       : handler_(h),
@@ -155,8 +155,8 @@ namespace spawn::detail {
   class coro_async_result<Handler, void>
   {
   public:
-    typedef coro_handler<Handler, void> completion_handler_type;
-    typedef void return_type;
+    using completion_handler_type = coro_handler<Handler, void>;
+    using return_type = void;
 
     explicit coro_async_result(completion_handler_type& h)
       : handler_(h),
@@ -248,7 +248,7 @@ public:
 template <typename Handler, typename T, typename Allocator>
 struct associated_allocator<spawn::detail::coro_handler<Handler, T>, Allocator>
 {
-  typedef associated_allocator_t<Handler, Allocator> type;
+  using type = associated_allocator_t<Handler, Allocator>;
 
   static type get(const spawn::detail::coro_handler<Handler, T>& h,
       const Allocator& a = Allocator()) noexcept
@@ -260,7 +260,7 @@ struct associated_allocator<spawn::detail::coro_handler<Handler, T>, Allocator>
 template <typename Handler, typename T, typename Executor>
 struct associated_executor<spawn::detail::coro_handler<Handler, T>, Executor>
 {
-  typedef associated_executor_t<Handler, Executor> type;
+  using type = associated_executor_t<Handler, Executor>;
 
   static type get(const spawn::detail::coro_handler<Handler, T>& h,
       const Executor& ex = Executor()) noexcept
@@ -344,8 +344,8 @@ void spawn(Handler&& handler, Function&& function, StackAllocator&& salloc,
       !detail::is_stack_allocator<typename std::decay<Function>::type>::value &&
       detail::is_stack_allocator<typename std::decay<StackAllocator>::type>::value>::type*)
 {
-  typedef typename std::decay<Handler>::type handler_type;
-  typedef typename std::decay<Function>::type function_type;
+  using handler_type = typename std::decay<Handler>::type;
+  using function_type = typename std::decay<Function>::type;
 
   auto ex = detail::net::get_associated_executor(handler);
   auto a = detail::net::get_associated_allocator(handler);
@@ -366,7 +366,7 @@ void spawn(basic_yield_context<Handler> ctx,
     typename std::enable_if<detail::is_stack_allocator<
       typename std::decay<StackAllocator>::type>::value>::type*)
 {
-  typedef typename std::decay<Function>::type function_type;
+  using function_type = typename std::decay<Function>::type;
 
   Handler handler(ctx.handler_); // Explicit copy that might be moved from.
 

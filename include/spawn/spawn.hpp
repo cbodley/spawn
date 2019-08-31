@@ -117,10 +117,10 @@ private:
 
 #if defined(GENERATING_DOCUMENTATION)
 /// Context object that represents the current execution context.
-typedef basic_yield_context<unspecified> yield_context;
+using yield_context = basic_yield_context<unspecified>;
 #else // defined(GENERATING_DOCUMENTATION)
-typedef basic_yield_context<
-  detail::net::executor_binder<void(*)(), detail::net::executor> > yield_context;
+using yield_context = basic_yield_context<
+  detail::net::executor_binder<void(*)(), detail::net::executor>>;
 #endif // defined(GENERATING_DOCUMENTATION)
 
 /**
