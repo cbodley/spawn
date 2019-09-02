@@ -18,7 +18,6 @@
 
 #include <boost/asio/detail/config.hpp>
 #include <boost/asio/bind_executor.hpp>
-#include <boost/asio/detail/is_stack_allocator.hpp>
 #include <boost/asio/detail/memory.hpp>
 #include <boost/asio/detail/noncopyable.hpp>
 #include <boost/asio/detail/type_traits.hpp>
@@ -30,6 +29,8 @@
 
 #include <boost/context/fixedsize_stack.hpp>
 #include <boost/context/segmented_stack.hpp>
+
+#include <spawn/detail/is_stack_allocator.hpp>
 
 #include <boost/asio/detail/push_options.hpp>
 
@@ -389,6 +390,6 @@ void spawn(ExecutionContext& ctx,
 
 #include <boost/asio/detail/pop_options.hpp>
 
-#include <boost/asio/impl/spawn.hpp>
+#include <spawn/impl/spawn.hpp>
 
 #endif // BOOST_ASIO_SPAWN_HPP

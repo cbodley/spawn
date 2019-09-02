@@ -39,6 +39,8 @@
 # include <boost/context/segmented_stack.hpp>
 #endif
 
+#include <spawn/detail/is_stack_allocator.hpp>
+
 #include <boost/asio/detail/push_options.hpp>
 
 namespace boost {

@@ -10,7 +10,7 @@
 //
 
 // Test that header file is self-contained.
-#include <boost/asio/spawn.hpp>
+#include <spawn/spawn.hpp>
 
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/system_timer.hpp>
