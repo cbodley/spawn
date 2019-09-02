@@ -27,14 +27,9 @@
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/is_executor.hpp>
 #include <boost/asio/strand.hpp>
-#include <boost/context/detail/config.hpp>
-#if !defined(BOOST_CONTEXT_NO_CXX11)
-# include <boost/context/continuation.hpp>
-#else
-# include <boost/context/detail/fcontext.hpp>
-# include <boost/context/fixedsize_stack.hpp>
-# include <boost/context/segmented_stack.hpp>
-#endif
+
+#include <boost/context/fixedsize_stack.hpp>
+#include <boost/context/segmented_stack.hpp>
 
 #include <boost/asio/detail/push_options.hpp>
 
@@ -42,57 +37,7 @@ namespace boost {
 namespace asio {
 namespace detail {
 
-#if !defined(BOOST_CONTEXT_NO_CXX11)
-  class continuation_context : private noncopyable
-  {
-  public:
-    boost::context::continuation callee_;
-    boost::context::continuation caller_;
-
-    continuation_context()
-      : callee_(),
-        caller_()
-    {
-    }
-
-    void resume()
-    {
-      callee_ = callee_.resume();
-    }
-
-    void suspend()
-    {
-      caller_ = caller_.resume();
-    }
-  };
-#else
-  class continuation_context : private noncopyable
-  {
-  public:
-    boost::context::detail::fcontext_t callee_;
-    boost::context::detail::fcontext_t caller_;
-
-    continuation_context()
-      : callee_(0),
-        caller_(0)
-    {
-    }
-
-    virtual ~continuation_context()
-    {
-    }
-
-    void resume()
-    {
-      callee_ = boost::context::detail::jump_fcontext(callee_, 0).fctx;
-    }
-
-    void suspend()
-    {
-      caller_ = boost::context::detail::jump_fcontext(caller_, 0).fctx;
-    }
-  };
-#endif
+  class continuation_context;
 
 } // namespace detail
 
@@ -125,8 +70,11 @@ public:
    * spawn() function passes a yield context as an argument to the continuation
    * function.
    */
-  basic_yield_context(Handler& handler, const detail::weak_ptr<detail::continuation_context>& yc)
-    : yc_(yc),
+  basic_yield_context(
+      const detail::weak_ptr<detail::continuation_context>& callee,
+      detail::continuation_context& caller, Handler& handler)
+    : callee_(callee),
+      caller_(caller),
       handler_(handler),
       ec_(0)
   {
@@ -138,7 +86,8 @@ public:
    */
   template <typename OtherHandler>
   basic_yield_context(const basic_yield_context<OtherHandler>& other)
-    : yc_(other.yc_),
+    : callee_(other.callee_),
+      caller_(other.caller_),
       handler_(other.handler_),
       ec_(other.ec_)
   {
@@ -173,7 +122,8 @@ public:
 #if defined(GENERATING_DOCUMENTATION)
 private:
 #endif // defined(GENERATING_DOCUMENTATION)
-  detail::weak_ptr<detail::continuation_context> yc_;
+  detail::weak_ptr<detail::continuation_context> callee_;
+  detail::continuation_context& caller_;
   Handler handler_;
   boost::system::error_code* ec_;
 };

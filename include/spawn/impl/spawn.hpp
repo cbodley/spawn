@@ -29,7 +29,15 @@
 #include <boost/asio/detail/noncopyable.hpp>
 #include <boost/asio/detail/type_traits.hpp>
 #include <boost/system/system_error.hpp>
-#include <boost/context/stack_context.hpp>
+
+#include <boost/context/detail/config.hpp>
+#if !defined(BOOST_CONTEXT_NO_CXX11)
+# include <boost/context/continuation.hpp>
+#else
+# include <boost/context/detail/fcontext.hpp>
+# include <boost/context/fixedsize_stack.hpp>
+# include <boost/context/segmented_stack.hpp>
+#endif
 
 #include <boost/asio/detail/push_options.hpp>
 
@@ -37,12 +45,51 @@ namespace boost {
 namespace asio {
 namespace detail {
 
+#if !defined(BOOST_CONTEXT_NO_CXX11)
+  class continuation_context
+  {
+  public:
+    boost::context::continuation context_;
+
+    continuation_context()
+      : context_()
+    {
+    }
+
+    void resume()
+    {
+      context_ = context_.resume();
+    }
+  };
+#else
+  class continuation_context
+  {
+  public:
+    boost::context::detail::fcontext_t context_;
+
+    continuation_context()
+      : context_(0)
+    {
+    }
+
+    virtual ~continuation_context()
+    {
+    }
+
+    void resume()
+    {
+      context_ = boost::context::detail::jump_fcontext(context_, 0).fctx;
+    }
+  };
+#endif
+
   template <typename Handler, typename T>
   class coro_handler
   {
   public:
     coro_handler(basic_yield_context<Handler> ctx)
-      : yc_(ctx.yc_.lock()),
+      : callee_(ctx.callee_.lock()),
+        caller_(ctx.caller_),
         handler_(ctx.handler_),
         ready_(0),
         ec_(ctx.ec_),
@@ -55,7 +102,7 @@ namespace detail {
       *ec_ = boost::system::error_code();
       *value_ = BOOST_ASIO_MOVE_CAST(T)(value);
       if (--*ready_ == 0)
-        yc_->resume();
+        callee_->resume();
     }
 
     void operator()(boost::system::error_code ec, T value)
@@ -63,11 +110,12 @@ namespace detail {
       *ec_ = ec;
       *value_ = BOOST_ASIO_MOVE_CAST(T)(value);
       if (--*ready_ == 0)
-        yc_->resume();
+        callee_->resume();
     }
 
   //private:
-    shared_ptr<continuation_context> yc_;
+    shared_ptr<continuation_context> callee_;
+    continuation_context& caller_;
     Handler handler_;
     atomic_count* ready_;
     boost::system::error_code* ec_;
@@ -79,7 +127,8 @@ namespace detail {
   {
   public:
     coro_handler(basic_yield_context<Handler> ctx)
-      : yc_(ctx.yc_.lock()),
+      : callee_(ctx.callee_.lock()),
+        caller_(ctx.caller_),
         handler_(ctx.handler_),
         ready_(0),
         ec_(ctx.ec_)
@@ -90,18 +139,19 @@ namespace detail {
     {
       *ec_ = boost::system::error_code();
       if (--*ready_ == 0)
-        yc_->resume();
+        callee_->resume();
     }
 
     void operator()(boost::system::error_code ec)
     {
       *ec_ = ec;
       if (--*ready_ == 0)
-        yc_->resume();
+        callee_->resume();
     }
 
   //private:
-    shared_ptr<continuation_context> yc_;
+    shared_ptr<continuation_context> callee_;
+    continuation_context& caller_;
     Handler handler_;
     atomic_count* ready_;
     boost::system::error_code* ec_;
@@ -154,6 +204,7 @@ namespace detail {
 
     explicit coro_async_result(completion_handler_type& h)
       : handler_(h),
+        caller_(h.caller_),
         ready_(2)
     {
       h.ready_ = &ready_;
@@ -164,14 +215,18 @@ namespace detail {
 
     return_type get()
     {
+      // Must not hold shared_ptr while suspended.
+      handler_.callee_.reset();
+
       if (--ready_ != 0)
-        handler_.yc_->suspend();
+        caller_.resume(); // suspend caller
       if (!out_ec_ && ec_) throw boost::system::system_error(ec_);
       return BOOST_ASIO_MOVE_CAST(return_type)(value_);
     }
 
   private:
     completion_handler_type& handler_;
+    continuation_context& caller_;
     atomic_count ready_;
     boost::system::error_code* out_ec_;
     boost::system::error_code ec_;
@@ -187,6 +242,7 @@ namespace detail {
 
     explicit coro_async_result(completion_handler_type& h)
       : handler_(h),
+        caller_(h.caller_),
         ready_(2)
     {
       h.ready_ = &ready_;
@@ -196,13 +252,17 @@ namespace detail {
 
     void get()
     {
+      // Must not hold shared_ptr while suspended.
+      handler_.callee_.reset();
+
       if (--ready_ != 0)
-        handler_.yc_->suspend();
+        caller_.resume(); // suspend caller
       if (!out_ec_ && ec_) throw boost::system::system_error(ec_);
     }
 
   private:
     completion_handler_type& handler_;
+    continuation_context& caller_;
     atomic_count ready_;
     boost::system::error_code* out_ec_;
     boost::system::error_code ec_;
@@ -311,8 +371,9 @@ namespace detail {
     bool call_handler_;
     Function function_;
     StackAllocator salloc_;
+    continuation_context caller_;
 #if defined(BOOST_CONTEXT_NO_CXX11)
-    shared_ptr<continuation_context> yc_;
+    weak_ptr<continuation_context> callee_;
 #endif
   };
 
@@ -322,23 +383,26 @@ namespace detail {
   {
     void operator()()
     {
-      shared_ptr<continuation_context> yc(new continuation_context());
-      yc->callee_ = boost::context::callcc(
+      callee_.reset(new continuation_context());
+      callee_->context_ = boost::context::callcc(
           std::allocator_arg, BOOST_ASIO_MOVE_CAST(StackAllocator)(data_->salloc_),
-          [yc,this](BOOST_ASIO_MOVE_ARG(boost::context::continuation) c)
+          [this] (BOOST_ASIO_MOVE_ARG(boost::context::continuation) c)
           {
-            yc->caller_ = BOOST_ASIO_MOVE_CAST(boost::context::continuation)(c);
             shared_ptr<spawn_data<Handler, Function, StackAllocator> > data = data_;
-            const basic_yield_context<Handler> yh(data->handler_, yc);
+            data->caller_.context_ = BOOST_ASIO_MOVE_CAST(boost::context::continuation)(c);
+            const basic_yield_context<Handler> yh(callee_, data->caller_, data->handler_);
             (data->function_)(yh);
             if (data->call_handler_)
             {
               (data->handler_)();
             }
-            return BOOST_ASIO_MOVE_CAST(boost::context::continuation)(yc->caller_);
+            boost::context::continuation caller = BOOST_ASIO_MOVE_CAST(boost::context::continuation)(data->caller_.context_);
+            data.reset();
+            return BOOST_ASIO_MOVE_CAST(boost::context::continuation)(caller);
           });
     }
 
+    shared_ptr<continuation_context> callee_;
     shared_ptr<spawn_data<Handler, Function, StackAllocator> > data_;
   };
 #else
@@ -366,14 +430,16 @@ namespace detail {
   {
     shared_ptr<spawn_data<Handler, Function, StackAllocator> > data(
         *static_cast<shared_ptr<spawn_data<Handler, Function, StackAllocator> >*>(t.data));
-    data->yc_->caller_ = t.fctx;
-    const basic_yield_context<Handler> yh(data->handler_, data->yc_);
-    (data->function_)(yh);
+    data->caller_.context_ = t.fctx;
+    {
+      const basic_yield_context<Handler> yh(data->callee_, data->caller_, data->handler_);
+      (data->function_)(yh);
+    }
     if (data->call_handler_)
     {
       (data->handler_)();
     }
-    boost::context::detail::fcontext_t caller = data->yc_->caller_;
+    boost::context::detail::fcontext_t caller = data->caller_.context_;
     data.reset();
     boost::context::detail::jump_fcontext(caller, 0);
   }
@@ -384,14 +450,14 @@ namespace detail {
     void operator()()
     {
       boost::context::stack_context sctx = data_->salloc_.allocate();
-      shared_ptr<continuation_context> yc(
+      shared_ptr<continuation_context> callee(
           new fcontext_continuation_context<StackAllocator>(
               BOOST_ASIO_MOVE_CAST(StackAllocator)(data_->salloc_), sctx));
-      data_->yc_ = yc;
-      yc->callee_ = boost::context::detail::make_fcontext(
+      data_->callee_ = callee;
+      callee->context_ = boost::context::detail::make_fcontext(
           sctx.sp, sctx.size, &context_entry<Handler, Function, StackAllocator>);
-      yc->callee_ = boost::context::detail::jump_fcontext(
-          data_->yc_->callee_, & data_).fctx;
+      callee->context_ = boost::context::detail::jump_fcontext(
+          callee->context_, & data_).fctx;
     }
 
     shared_ptr<spawn_data<Handler, Function, StackAllocator> > data_;
@@ -453,11 +519,11 @@ void spawn(BOOST_ASIO_MOVE_ARG(Handler) handler,
       (get_associated_allocator)(handler));
 
   detail::spawn_helper<handler_type, function_type, StackAllocator> helper;
-  helper.data_.reset(
-      new detail::spawn_data<handler_type, function_type, StackAllocator>(
+  helper.data_ = detail::make_shared<
+      detail::spawn_data<handler_type, function_type, StackAllocator> >(
         BOOST_ASIO_MOVE_CAST(Handler)(handler), true,
         BOOST_ASIO_MOVE_CAST(Function)(function),
-        BOOST_ASIO_MOVE_CAST(StackAllocator)(salloc)));
+        BOOST_ASIO_MOVE_CAST(StackAllocator)(salloc));
 
   ex.dispatch(helper, a);
 }
@@ -480,11 +546,11 @@ void spawn(basic_yield_context<Handler> ctx,
       (get_associated_allocator)(handler));
 
   detail::spawn_helper<Handler, function_type, StackAllocator> helper;
-  helper.data_.reset(
-      new detail::spawn_data<Handler, function_type, StackAllocator>(
+  helper.data_ = detail::make_shared<
+      detail::spawn_data<Handler, function_type, StackAllocator> >(
         BOOST_ASIO_MOVE_CAST(Handler)(handler), false,
         BOOST_ASIO_MOVE_CAST(Function)(function),
-        BOOST_ASIO_MOVE_CAST(StackAllocator)(salloc)));
+        BOOST_ASIO_MOVE_CAST(StackAllocator)(salloc));
 
   ex.dispatch(helper, a);
 }
