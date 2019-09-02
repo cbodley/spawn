@@ -14,12 +14,13 @@
 
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/system_timer.hpp>
+#include <boost/context/protected_fixedsize_stack.hpp>
 #include <gtest/gtest.h>
 
 
-boost::coroutines::attributes with_attributes()
+boost::context::protected_fixedsize_stack with_stack_allocator()
 {
-  return boost::coroutines::attributes(65536);
+  return boost::context::protected_fixedsize_stack(65536);
 }
 
 struct counting_handler {
@@ -39,18 +40,18 @@ TEST(Spawn, SpawnFunction)
   ASSERT_TRUE(ioc.stopped());
   ASSERT_EQ(1, called);
 }
-#if 0 // XXX: spawn(Function&&, attributes) calls spawn(Handler&&, Function&&)
-TEST(Spawn, SpawnFunctionAttributes)
+
+TEST(Spawn, SpawnFunctionStackAllocator)
 {
   boost::asio::io_context ioc;
   int called = 0;
   boost::asio::spawn(counting_handler(called),
-                     with_attributes());
+                     with_stack_allocator());
   ASSERT_EQ(0, ioc.run());
   ASSERT_TRUE(ioc.stopped());
   ASSERT_EQ(1, called);
 }
-#endif
+
 TEST(Spawn, SpawnHandler)
 {
   boost::asio::io_context ioc;
@@ -63,7 +64,7 @@ TEST(Spawn, SpawnHandler)
   ASSERT_EQ(2, called);
 }
 
-TEST(Spawn, SpawnHandlerAttributes)
+TEST(Spawn, SpawnHandlerStackAllocator)
 {
   boost::asio::io_context ioc;
   typedef boost::asio::io_context::executor_type executor_type;
@@ -71,7 +72,7 @@ TEST(Spawn, SpawnHandlerAttributes)
   int called = 0;
   boost::asio::spawn(bind_executor(strand, counting_handler(called)),
                      counting_handler(called),
-                     with_attributes());
+                     with_stack_allocator());
   ASSERT_EQ(1, ioc.run());
   ASSERT_TRUE(ioc.stopped());
   ASSERT_EQ(2, called);
@@ -107,12 +108,12 @@ struct spawn_alloc_counting_handler {
   void operator()(boost::asio::basic_yield_context<T> y)
   {
     boost::asio::spawn(y, counting_handler(count),
-                       with_attributes());
+                       with_stack_allocator());
     ++count;
   }
 };
 
-TEST(Spawn, SpawnYieldContextAttributes)
+TEST(Spawn, SpawnYieldContextStackAllocator)
 {
   boost::asio::io_context ioc;
   int called = 0;
@@ -134,13 +135,13 @@ TEST(Spawn, SpawnExecutor)
   ASSERT_EQ(1, called);
 }
 
-TEST(Spawn, SpawnExecutorAttributes)
+TEST(Spawn, SpawnExecutorStackAllocator)
 {
   boost::asio::io_context ioc;
   int called = 0;
   boost::asio::spawn(ioc.get_executor(),
                      counting_handler(called),
-                     with_attributes());
+                     with_stack_allocator());
   ASSERT_EQ(1, ioc.run());
   ASSERT_TRUE(ioc.stopped());
   ASSERT_EQ(1, called);
@@ -158,14 +159,14 @@ TEST(Spawn, SpawnStrand)
   ASSERT_EQ(1, called);
 }
 
-TEST(Spawn, SpawnStrandAttributes)
+TEST(Spawn, SpawnStrandStackAllocator)
 {
   boost::asio::io_context ioc;
   typedef boost::asio::io_context::executor_type executor_type;
   int called = 0;
   boost::asio::spawn(boost::asio::strand<executor_type>(ioc.get_executor()),
                      counting_handler(called),
-                     with_attributes());
+                     with_stack_allocator());
   ASSERT_EQ(1, ioc.run());
   ASSERT_TRUE(ioc.stopped());
   ASSERT_EQ(1, called);
@@ -181,12 +182,12 @@ TEST(Spawn, SpawnExecutionContext)
   ASSERT_EQ(1, called);
 }
 
-TEST(Spawn, SpawnExecutionContextAttributes)
+TEST(Spawn, SpawnExecutionContextStackAllocator)
 {
   boost::asio::io_context ioc;
   int called = 0;
   boost::asio::spawn(ioc, counting_handler(called),
-                     with_attributes());
+                     with_stack_allocator());
   ASSERT_EQ(1, ioc.run());
   ASSERT_TRUE(ioc.stopped());
   ASSERT_EQ(1, called);

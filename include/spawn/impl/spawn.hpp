@@ -3,6 +3,7 @@
 // ~~~~~~~~~~~~~~
 //
 // Copyright (c) 2003-2019 Christopher M. Kohlhoff (chris at kohlhoff dot com)
+// Copyright (c) 2017 Oliver Kowalke (oliver dot kowalke at gmail dot com)
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -28,6 +29,7 @@
 #include <boost/asio/detail/noncopyable.hpp>
 #include <boost/asio/detail/type_traits.hpp>
 #include <boost/system/system_error.hpp>
+#include <boost/context/stack_context.hpp>
 
 #include <boost/asio/detail/push_options.hpp>
 
@@ -40,8 +42,7 @@ namespace detail {
   {
   public:
     coro_handler(basic_yield_context<Handler> ctx)
-      : coro_(ctx.coro_.lock()),
-        ca_(ctx.ca_),
+      : yc_(ctx.yc_.lock()),
         handler_(ctx.handler_),
         ready_(0),
         ec_(ctx.ec_),
@@ -54,7 +55,7 @@ namespace detail {
       *ec_ = boost::system::error_code();
       *value_ = BOOST_ASIO_MOVE_CAST(T)(value);
       if (--*ready_ == 0)
-        (*coro_)();
+        yc_->resume();
     }
 
     void operator()(boost::system::error_code ec, T value)
@@ -62,12 +63,11 @@ namespace detail {
       *ec_ = ec;
       *value_ = BOOST_ASIO_MOVE_CAST(T)(value);
       if (--*ready_ == 0)
-        (*coro_)();
+        yc_->resume();
     }
 
   //private:
-    shared_ptr<typename basic_yield_context<Handler>::callee_type> coro_;
-    typename basic_yield_context<Handler>::caller_type& ca_;
+    shared_ptr<continuation_context> yc_;
     Handler handler_;
     atomic_count* ready_;
     boost::system::error_code* ec_;
@@ -79,8 +79,7 @@ namespace detail {
   {
   public:
     coro_handler(basic_yield_context<Handler> ctx)
-      : coro_(ctx.coro_.lock()),
-        ca_(ctx.ca_),
+      : yc_(ctx.yc_.lock()),
         handler_(ctx.handler_),
         ready_(0),
         ec_(ctx.ec_)
@@ -91,19 +90,18 @@ namespace detail {
     {
       *ec_ = boost::system::error_code();
       if (--*ready_ == 0)
-        (*coro_)();
+        yc_->resume();
     }
 
     void operator()(boost::system::error_code ec)
     {
       *ec_ = ec;
       if (--*ready_ == 0)
-        (*coro_)();
+        yc_->resume();
     }
 
   //private:
-    shared_ptr<typename basic_yield_context<Handler>::callee_type> coro_;
-    typename basic_yield_context<Handler>::caller_type& ca_;
+    shared_ptr<continuation_context> yc_;
     Handler handler_;
     atomic_count* ready_;
     boost::system::error_code* ec_;
@@ -156,7 +154,6 @@ namespace detail {
 
     explicit coro_async_result(completion_handler_type& h)
       : handler_(h),
-        ca_(h.ca_),
         ready_(2)
     {
       h.ready_ = &ready_;
@@ -167,18 +164,14 @@ namespace detail {
 
     return_type get()
     {
-      // Must not hold shared_ptr to coro while suspended.
-      handler_.coro_.reset();
-
       if (--ready_ != 0)
-        ca_();
+        handler_.yc_->suspend();
       if (!out_ec_ && ec_) throw boost::system::system_error(ec_);
       return BOOST_ASIO_MOVE_CAST(return_type)(value_);
     }
 
   private:
     completion_handler_type& handler_;
-    typename basic_yield_context<Handler>::caller_type& ca_;
     atomic_count ready_;
     boost::system::error_code* out_ec_;
     boost::system::error_code ec_;
@@ -194,7 +187,6 @@ namespace detail {
 
     explicit coro_async_result(completion_handler_type& h)
       : handler_(h),
-        ca_(h.ca_),
         ready_(2)
     {
       h.ready_ = &ready_;
@@ -204,17 +196,13 @@ namespace detail {
 
     void get()
     {
-      // Must not hold shared_ptr to coro while suspended.
-      handler_.coro_.reset();
-
       if (--ready_ != 0)
-        ca_();
+        handler_.yc_->suspend();
       if (!out_ec_ && ec_) throw boost::system::system_error(ec_);
     }
 
   private:
     completion_handler_type& handler_;
-    typename basic_yield_context<Handler>::caller_type& ca_;
     atomic_count ready_;
     boost::system::error_code* out_ec_;
     boost::system::error_code ec_;
@@ -304,71 +292,125 @@ struct associated_executor<detail::coro_handler<Handler, T>, Executor>
 
 namespace detail {
 
-  template <typename Handler, typename Function>
+  template <typename Handler, typename Function, typename StackAllocator>
   struct spawn_data : private noncopyable
   {
-    template <typename Hand, typename Func>
+    template <typename Hand, typename Func, typename Stack>
     spawn_data(BOOST_ASIO_MOVE_ARG(Hand) handler,
-        bool call_handler, BOOST_ASIO_MOVE_ARG(Func) function)
+        bool call_handler,
+        BOOST_ASIO_MOVE_ARG(Func) function,
+        BOOST_ASIO_MOVE_ARG(Stack) salloc)
       : handler_(BOOST_ASIO_MOVE_CAST(Hand)(handler)),
         call_handler_(call_handler),
-        function_(BOOST_ASIO_MOVE_CAST(Func)(function))
+        function_(BOOST_ASIO_MOVE_CAST(Func)(function)),
+        salloc_(BOOST_ASIO_MOVE_CAST(Stack)(salloc))
     {
     }
 
-    weak_ptr<typename basic_yield_context<Handler>::callee_type> coro_;
     Handler handler_;
     bool call_handler_;
     Function function_;
+    StackAllocator salloc_;
+#if defined(BOOST_CONTEXT_NO_CXX11)
+    shared_ptr<continuation_context> yc_;
+#endif
   };
 
-  template <typename Handler, typename Function>
-  struct coro_entry_point
-  {
-    void operator()(typename basic_yield_context<Handler>::caller_type& ca)
-    {
-      shared_ptr<spawn_data<Handler, Function> > data(data_);
-#if !defined(BOOST_COROUTINES_UNIDIRECT) && !defined(BOOST_COROUTINES_V2)
-      ca(); // Yield until coroutine pointer has been initialised.
-#endif // !defined(BOOST_COROUTINES_UNIDIRECT) && !defined(BOOST_COROUTINES_V2)
-      const basic_yield_context<Handler> yield(
-          data->coro_, ca, data->handler_);
-
-      (data->function_)(yield);
-      if (data->call_handler_)
-        (data->handler_)();
-    }
-
-    shared_ptr<spawn_data<Handler, Function> > data_;
-  };
-
-  template <typename Handler, typename Function>
+#if !defined(BOOST_CONTEXT_NO_CXX11)
+  template <typename Handler, typename Function, typename StackAllocator>
   struct spawn_helper
   {
     void operator()()
     {
-      typedef typename basic_yield_context<Handler>::callee_type callee_type;
-      coro_entry_point<Handler, Function> entry_point = { data_ };
-      shared_ptr<callee_type> coro(new callee_type(entry_point, attributes_));
-      data_->coro_ = coro;
-      (*coro)();
+      shared_ptr<continuation_context> yc(new continuation_context());
+      yc->callee_ = boost::context::callcc(
+          std::allocator_arg, BOOST_ASIO_MOVE_CAST(StackAllocator)(data_->salloc_),
+          [yc,this](BOOST_ASIO_MOVE_ARG(boost::context::continuation) c)
+          {
+            yc->caller_ = BOOST_ASIO_MOVE_CAST(boost::context::continuation)(c);
+            shared_ptr<spawn_data<Handler, Function, StackAllocator> > data = data_;
+            const basic_yield_context<Handler> yh(data->handler_, yc);
+            (data->function_)(yh);
+            if (data->call_handler_)
+            {
+              (data->handler_)();
+            }
+            return BOOST_ASIO_MOVE_CAST(boost::context::continuation)(yc->caller_);
+          });
     }
 
-    shared_ptr<spawn_data<Handler, Function> > data_;
-    boost::coroutines::attributes attributes_;
+    shared_ptr<spawn_data<Handler, Function, StackAllocator> > data_;
+  };
+#else
+  template <typename StackAllocator>
+  struct fcontext_continuation_context : public continuation_context
+  {
+    fcontext_continuation_context(BOOST_ASIO_MOVE_ARG(StackAllocator) salloc,
+        boost::context::stack_context const& sctx)
+      : salloc_(BOOST_ASIO_MOVE_CAST(StackAllocator)(salloc)),
+        sctx_(sctx)
+    {
+    }
+
+    ~fcontext_continuation_context() BOOST_NOEXCEPT
+    {
+      salloc_.deallocate(sctx_);
+    }
+
+    StackAllocator salloc_;
+    boost::context::stack_context sctx_;
   };
 
-  template <typename Function, typename Handler, typename Function1>
+  template <typename Handler, typename Function, typename StackAllocator>
+  void context_entry(boost::context::detail::transfer_t t) BOOST_NOEXCEPT
+  {
+    shared_ptr<spawn_data<Handler, Function, StackAllocator> > data(
+        *static_cast<shared_ptr<spawn_data<Handler, Function, StackAllocator> >*>(t.data));
+    data->yc_->caller_ = t.fctx;
+    const basic_yield_context<Handler> yh(data->handler_, data->yc_);
+    (data->function_)(yh);
+    if (data->call_handler_)
+    {
+      (data->handler_)();
+    }
+    boost::context::detail::fcontext_t caller = data->yc_->caller_;
+    data.reset();
+    boost::context::detail::jump_fcontext(caller, 0);
+  }
+
+  template <typename Handler, typename Function, typename StackAllocator>
+  struct spawn_helper
+  {
+    void operator()()
+    {
+      boost::context::stack_context sctx = data_->salloc_.allocate();
+      shared_ptr<continuation_context> yc(
+          new fcontext_continuation_context<StackAllocator>(
+              BOOST_ASIO_MOVE_CAST(StackAllocator)(data_->salloc_), sctx));
+      data_->yc_ = yc;
+      yc->callee_ = boost::context::detail::make_fcontext(
+          sctx.sp, sctx.size, &context_entry<Handler, Function, StackAllocator>);
+      yc->callee_ = boost::context::detail::jump_fcontext(
+          data_->yc_->callee_, & data_).fctx;
+    }
+
+    shared_ptr<spawn_data<Handler, Function, StackAllocator> > data_;
+  };
+#endif
+
+  template <typename Function, typename Handler,
+      typename Function1, typename StackAllocator>
   inline void asio_handler_invoke(Function& function,
-      spawn_helper<Handler, Function1>* this_handler)
+      spawn_helper<Handler, Function1, StackAllocator>* this_handler)
   {
     boost_asio_handler_invoke_helpers::invoke(
         function, this_handler->data_->handler_);
   }
 
-  template <typename Function, typename Handler, typename Function1>
+  template <typename Function, typename Handler,
+      typename Function1, typename StackAllocator>
   inline void asio_handler_invoke(const Function& function,
-      spawn_helper<Handler, Function1>* this_handler)
+      spawn_helper<Handler, Function1, StackAllocator>* this_handler)
   {
     boost_asio_handler_invoke_helpers::invoke(
         function, this_handler->data_->handler_);
@@ -378,24 +420,28 @@ namespace detail {
 
 } // namespace detail
 
-template <typename Function>
+template <typename Function, typename StackAllocator>
 inline void spawn(BOOST_ASIO_MOVE_ARG(Function) function,
-    const boost::coroutines::attributes& attributes)
+    BOOST_ASIO_MOVE_ARG(StackAllocator) salloc,
+    typename enable_if<detail::is_stack_allocator<
+      typename decay<StackAllocator>::type>::value>::type*)
 {
   typedef typename decay<Function>::type function_type;
 
   typename associated_executor<function_type>::type ex(
       (get_associated_executor)(function));
 
-  boost::asio::spawn(ex, BOOST_ASIO_MOVE_CAST(Function)(function), attributes);
+  boost::asio::spawn(ex, BOOST_ASIO_MOVE_CAST(Function)(function), salloc);
 }
 
-template <typename Handler, typename Function>
+template <typename Handler, typename Function, typename StackAllocator>
 void spawn(BOOST_ASIO_MOVE_ARG(Handler) handler,
     BOOST_ASIO_MOVE_ARG(Function) function,
-    const boost::coroutines::attributes& attributes,
+    BOOST_ASIO_MOVE_ARG(StackAllocator) salloc,
     typename enable_if<!is_executor<typename decay<Handler>::type>::value &&
-      !is_convertible<Handler&, execution_context&>::value>::type*)
+      !is_convertible<Handler&, execution_context&>::value &&
+      !detail::is_stack_allocator<typename decay<Function>::type>::value &&
+      detail::is_stack_allocator<typename decay<StackAllocator>::type>::value>::type*)
 {
   typedef typename decay<Handler>::type handler_type;
   typedef typename decay<Function>::type function_type;
@@ -406,20 +452,22 @@ void spawn(BOOST_ASIO_MOVE_ARG(Handler) handler,
   typename associated_allocator<handler_type>::type a(
       (get_associated_allocator)(handler));
 
-  detail::spawn_helper<handler_type, function_type> helper;
+  detail::spawn_helper<handler_type, function_type, StackAllocator> helper;
   helper.data_.reset(
-      new detail::spawn_data<handler_type, function_type>(
+      new detail::spawn_data<handler_type, function_type, StackAllocator>(
         BOOST_ASIO_MOVE_CAST(Handler)(handler), true,
-        BOOST_ASIO_MOVE_CAST(Function)(function)));
-  helper.attributes_ = attributes;
+        BOOST_ASIO_MOVE_CAST(Function)(function),
+        BOOST_ASIO_MOVE_CAST(StackAllocator)(salloc)));
 
   ex.dispatch(helper, a);
 }
 
-template <typename Handler, typename Function>
+template <typename Handler, typename Function, typename StackAllocator>
 void spawn(basic_yield_context<Handler> ctx,
     BOOST_ASIO_MOVE_ARG(Function) function,
-    const boost::coroutines::attributes& attributes)
+    BOOST_ASIO_MOVE_ARG(StackAllocator) salloc,
+    typename enable_if<detail::is_stack_allocator<
+      typename decay<StackAllocator>::type>::value>::type*)
 {
   typedef typename decay<Function>::type function_type;
 
@@ -431,55 +479,65 @@ void spawn(basic_yield_context<Handler> ctx,
   typename associated_allocator<Handler>::type a(
       (get_associated_allocator)(handler));
 
-  detail::spawn_helper<Handler, function_type> helper;
+  detail::spawn_helper<Handler, function_type, StackAllocator> helper;
   helper.data_.reset(
-      new detail::spawn_data<Handler, function_type>(
+      new detail::spawn_data<Handler, function_type, StackAllocator>(
         BOOST_ASIO_MOVE_CAST(Handler)(handler), false,
-        BOOST_ASIO_MOVE_CAST(Function)(function)));
-  helper.attributes_ = attributes;
+        BOOST_ASIO_MOVE_CAST(Function)(function),
+        BOOST_ASIO_MOVE_CAST(StackAllocator)(salloc)));
 
   ex.dispatch(helper, a);
 }
 
-template <typename Function, typename Executor>
+template <typename Function, typename Executor, typename StackAllocator>
 inline void spawn(const Executor& ex,
     BOOST_ASIO_MOVE_ARG(Function) function,
-    const boost::coroutines::attributes& attributes,
-    typename enable_if<is_executor<Executor>::value>::type*)
+    BOOST_ASIO_MOVE_ARG(StackAllocator) salloc,
+    typename enable_if<is_executor<Executor>::value &&
+      detail::is_stack_allocator<typename decay<StackAllocator>::type>::value>::type*)
 {
   boost::asio::spawn(boost::asio::strand<Executor>(ex),
-      BOOST_ASIO_MOVE_CAST(Function)(function), attributes);
+      BOOST_ASIO_MOVE_CAST(Function)(function),
+      BOOST_ASIO_MOVE_CAST(StackAllocator)(salloc));
 }
 
-template <typename Function, typename Executor>
+template <typename Function, typename Executor, typename StackAllocator>
 inline void spawn(const strand<Executor>& ex,
     BOOST_ASIO_MOVE_ARG(Function) function,
-    const boost::coroutines::attributes& attributes)
+    BOOST_ASIO_MOVE_ARG(StackAllocator) salloc,
+    typename enable_if<detail::is_stack_allocator<
+      typename decay<StackAllocator>::type>::value>::type*)
 {
   boost::asio::spawn(boost::asio::bind_executor(
         ex, &detail::default_spawn_handler),
-      BOOST_ASIO_MOVE_CAST(Function)(function), attributes);
+      BOOST_ASIO_MOVE_CAST(Function)(function),
+      BOOST_ASIO_MOVE_CAST(StackAllocator)(salloc));
 }
 
-template <typename Function>
+template <typename Function, typename StackAllocator>
 inline void spawn(const boost::asio::io_context::strand& s,
     BOOST_ASIO_MOVE_ARG(Function) function,
-    const boost::coroutines::attributes& attributes)
+    BOOST_ASIO_MOVE_ARG(StackAllocator) salloc,
+    typename enable_if<detail::is_stack_allocator<
+      typename decay<StackAllocator>::type>::value>::type*)
 {
   boost::asio::spawn(boost::asio::bind_executor(
         s, &detail::default_spawn_handler),
-      BOOST_ASIO_MOVE_CAST(Function)(function), attributes);
+      BOOST_ASIO_MOVE_CAST(Function)(function),
+      BOOST_ASIO_MOVE_CAST(StackAllocator)(salloc));
 }
 
-template <typename Function, typename ExecutionContext>
+template <typename Function, typename ExecutionContext, typename StackAllocator>
 inline void spawn(ExecutionContext& ctx,
     BOOST_ASIO_MOVE_ARG(Function) function,
-    const boost::coroutines::attributes& attributes,
+    BOOST_ASIO_MOVE_ARG(StackAllocator) salloc,
     typename enable_if<is_convertible<
-      ExecutionContext&, execution_context&>::value>::type*)
+      ExecutionContext&, execution_context&>::value &&
+      detail::is_stack_allocator<typename decay<StackAllocator>::type>::value>::type*)
 {
   boost::asio::spawn(ctx.get_executor(),
-      BOOST_ASIO_MOVE_CAST(Function)(function), attributes);
+      BOOST_ASIO_MOVE_CAST(Function)(function),
+      BOOST_ASIO_MOVE_CAST(StackAllocator)(salloc));
 }
 
 #endif // !defined(GENERATING_DOCUMENTATION)
