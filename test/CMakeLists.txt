@@ -15,3 +15,7 @@ if(SPAWN_TEST_ADDRESS_SANITIZER)
 	target_compile_options(test_base INTERFACE "-fsanitize=address")
 	target_link_libraries(test_base INTERFACE "-fsanitize=address")
 endif()
+
+add_executable(test_spawn test_spawn.cc)
+target_link_libraries(test_spawn test_base spawn)
+add_test(test_spawn test_spawn)
