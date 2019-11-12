@@ -315,7 +315,7 @@ namespace detail {
             }
             boost::context::continuation caller = std::move(data->caller_.context_);
             data.reset();
-            return std::move(caller);
+            return caller;
           });
     }
 
