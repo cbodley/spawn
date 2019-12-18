@@ -13,7 +13,11 @@ endif()
 add_library(spawn INTERFACE)
 target_include_directories(spawn INTERFACE include)
 target_link_libraries(spawn INTERFACE Boost::system Boost::context)
-install(DIRECTORY include/spawn DESTINATION include)
+
+option(SPAWN_INSTALL "install spawn headers" ON)
+if(SPAWN_INSTALL)
+	install(DIRECTORY include/spawn DESTINATION include)
+endif()
 
 option(SPAWN_TEST_ADDRESS_SANITIZER "build spawn tests with address sanitizer" ON)
 
