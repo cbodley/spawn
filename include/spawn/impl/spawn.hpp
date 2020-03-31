@@ -21,7 +21,8 @@
 #include <spawn/detail/net.hpp>
 #include <spawn/detail/is_stack_allocator.hpp>
 
-namespace spawn::detail {
+namespace spawn {
+namespace detail {
 
   class continuation_context
   {
@@ -186,13 +187,13 @@ namespace spawn::detail {
     boost::system::error_code ec_;
   };
 
-} // namespace spawn::detail
+} // namespace detail
+} // namespace spawn
 
 #if !defined(GENERATING_DOCUMENTATION)
-namespace SPAWN_NET_NAMESPACE {
 
 template <typename Handler, typename ReturnType>
-class async_result<spawn::basic_yield_context<Handler>, ReturnType()>
+class SPAWN_NET_NAMESPACE::async_result<spawn::basic_yield_context<Handler>, ReturnType()>
   : public spawn::detail::coro_async_result<Handler, void>
 {
 public:
@@ -205,7 +206,7 @@ public:
 };
 
 template <typename Handler, typename ReturnType, typename Arg1>
-class async_result<spawn::basic_yield_context<Handler>, ReturnType(Arg1)>
+class SPAWN_NET_NAMESPACE::async_result<spawn::basic_yield_context<Handler>, ReturnType(Arg1)>
   : public spawn::detail::coro_async_result<Handler, typename std::decay<Arg1>::type>
 {
 public:
@@ -218,7 +219,7 @@ public:
 };
 
 template <typename Handler, typename ReturnType>
-class async_result<spawn::basic_yield_context<Handler>,
+class SPAWN_NET_NAMESPACE::async_result<spawn::basic_yield_context<Handler>,
     ReturnType(boost::system::error_code)>
   : public spawn::detail::coro_async_result<Handler, void>
 {
@@ -232,7 +233,7 @@ public:
 };
 
 template <typename Handler, typename ReturnType, typename Arg2>
-class async_result<spawn::basic_yield_context<Handler>,
+class SPAWN_NET_NAMESPACE::async_result<spawn::basic_yield_context<Handler>,
     ReturnType(boost::system::error_code, Arg2)>
   : public spawn::detail::coro_async_result<Handler, typename std::decay<Arg2>::type>
 {
@@ -246,7 +247,7 @@ public:
 };
 
 template <typename Handler, typename T, typename Allocator>
-struct associated_allocator<spawn::detail::coro_handler<Handler, T>, Allocator>
+struct SPAWN_NET_NAMESPACE::associated_allocator<spawn::detail::coro_handler<Handler, T>, Allocator>
 {
   using type = associated_allocator_t<Handler, Allocator>;
 
@@ -258,7 +259,7 @@ struct associated_allocator<spawn::detail::coro_handler<Handler, T>, Allocator>
 };
 
 template <typename Handler, typename T, typename Executor>
-struct associated_executor<spawn::detail::coro_handler<Handler, T>, Executor>
+struct SPAWN_NET_NAMESPACE::associated_executor<spawn::detail::coro_handler<Handler, T>, Executor>
 {
   using type = associated_executor_t<Handler, Executor>;
 
@@ -268,8 +269,6 @@ struct associated_executor<spawn::detail::coro_handler<Handler, T>, Executor>
     return associated_executor<Handler, Executor>::get(h.handler_, ex);
   }
 };
-
-} // namespace SPAWN_NET_NAMESPACE
 
 namespace spawn {
 namespace detail {
