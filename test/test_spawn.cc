@@ -41,6 +41,16 @@ TEST(Spawn, SpawnFunction)
   ASSERT_EQ(1, called);
 }
 
+TEST(Spawn, SpawnBoundFunction)
+{
+  boost::asio::io_context ioc;
+  int called = 0;
+  spawn::spawn(bind_executor(ioc.get_executor(), counting_handler(called)));
+  ASSERT_EQ(1, ioc.run());
+  ASSERT_TRUE(ioc.stopped());
+  ASSERT_EQ(1, called);
+}
+
 TEST(Spawn, SpawnFunctionStackAllocator)
 {
   boost::asio::io_context ioc;

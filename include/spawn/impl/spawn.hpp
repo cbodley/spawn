@@ -334,7 +334,8 @@ auto spawn(Function&& function, StackAllocator&& salloc)
 {
   auto ex = detail::net::get_associated_executor(function);
 
-  spawn(ex, std::forward<Function>(function), salloc);
+  spawn(ex, std::forward<Function>(function),
+        std::forward<StackAllocator>(salloc));
 }
 
 template <typename Handler, typename Function, typename StackAllocator>
