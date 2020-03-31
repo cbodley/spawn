@@ -308,19 +308,33 @@ namespace detail {
             std::shared_ptr<spawn_data<Handler, Function, StackAllocator> > data = data_;
             data->caller_.context_ = std::move(c);
             const basic_yield_context<Handler> yh(callee_, data->caller_, data->handler_);
-            (data->function_)(yh);
-            if (data->call_handler_)
+            try
             {
-              (data->handler_)();
+              (data->function_)(yh);
+              if (data->call_handler_)
+              {
+                (data->handler_)();
+              }
+            }
+            catch (const boost::context::detail::forced_unwind& e)
+            {
+              throw; // must allow forced_unwind to propagate
+            }
+            catch (...)
+            {
+              eptr_ = std::current_exception();
             }
             boost::context::continuation caller = std::move(data->caller_.context_);
             data.reset();
             return caller;
           });
+      if (eptr_)
+        std::rethrow_exception(eptr_);
     }
 
     std::shared_ptr<continuation_context> callee_;
     std::shared_ptr<spawn_data<Handler, Function, StackAllocator> > data_;
+    std::exception_ptr eptr_;
   };
 
   inline void default_spawn_handler() {}
