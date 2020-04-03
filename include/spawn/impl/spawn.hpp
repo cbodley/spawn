@@ -14,6 +14,7 @@
 
 #include <atomic>
 #include <memory>
+#include <tuple>
 
 #include <boost/system/system_error.hpp>
 #include <boost/context/continuation.hpp>
@@ -39,8 +40,47 @@ namespace detail {
     }
   };
 
-  template <typename Handler, typename T>
+  template <typename Handler, typename ...Ts>
   class coro_handler
+  {
+  public:
+    coro_handler(basic_yield_context<Handler> ctx)
+      : callee_(ctx.callee_.lock()),
+        caller_(ctx.caller_),
+        handler_(ctx.handler_),
+        ready_(0),
+        ec_(ctx.ec_),
+        value_(0)
+    {
+    }
+
+    void operator()(Ts... values)
+    {
+      *ec_ = boost::system::error_code();
+      *value_ = std::forward_as_tuple(std::move(values)...);
+      if (--*ready_ == 0)
+        callee_->resume();
+    }
+
+    void operator()(boost::system::error_code ec, Ts... values)
+    {
+      *ec_ = ec;
+      *value_ = std::forward_as_tuple(std::move(values)...);
+      if (--*ready_ == 0)
+        callee_->resume();
+    }
+
+  //private:
+    std::shared_ptr<continuation_context> callee_;
+    continuation_context& caller_;
+    Handler handler_;
+    std::atomic<long>* ready_;
+    boost::system::error_code* ec_;
+    std::tuple<Ts...>* value_;
+  };
+
+  template <typename Handler, typename T>
+  class coro_handler<Handler, T>
   {
   public:
     coro_handler(basic_yield_context<Handler> ctx)
@@ -113,8 +153,46 @@ namespace detail {
     boost::system::error_code* ec_;
   };
 
-  template <typename Handler, typename T>
+  template <typename Handler, typename ...Ts>
   class coro_async_result
+  {
+  public:
+    using completion_handler_type = coro_handler<Handler, Ts...>;
+    using return_type = std::tuple<Ts...>;
+
+    explicit coro_async_result(completion_handler_type& h)
+      : handler_(h),
+        caller_(h.caller_),
+        ready_(2)
+    {
+      h.ready_ = &ready_;
+      out_ec_ = h.ec_;
+      if (!out_ec_) h.ec_ = &ec_;
+      h.value_ = &value_;
+    }
+
+    return_type get()
+    {
+      // Must not hold shared_ptr while suspended.
+      handler_.callee_.reset();
+
+      if (--ready_ != 0)
+        caller_.resume(); // suspend caller
+      if (!out_ec_ && ec_) throw boost::system::system_error(ec_);
+      return std::move(value_);
+    }
+
+  private:
+    completion_handler_type& handler_;
+    continuation_context& caller_;
+    std::atomic<long> ready_;
+    boost::system::error_code* out_ec_;
+    boost::system::error_code ec_;
+    return_type value_;
+  };
+
+  template <typename Handler, typename T>
+  class coro_async_result<Handler, T>
   {
   public:
     using completion_handler_type = coro_handler<Handler, T>;
@@ -204,15 +282,15 @@ public:
   }
 };
 
-template <typename Handler, typename ReturnType, typename Arg1>
-class SPAWN_NET_NAMESPACE::async_result<spawn::basic_yield_context<Handler>, ReturnType(Arg1)>
-  : public spawn::detail::coro_async_result<Handler, typename std::decay<Arg1>::type>
+template <typename Handler, typename ReturnType, typename ...Args>
+class SPAWN_NET_NAMESPACE::async_result<spawn::basic_yield_context<Handler>, ReturnType(Args...)>
+  : public spawn::detail::coro_async_result<Handler, typename std::decay<Args>::type...>
 {
 public:
   explicit async_result(
     typename spawn::detail::coro_async_result<Handler,
-      typename std::decay<Arg1>::type>::completion_handler_type& h)
-    : spawn::detail::coro_async_result<Handler, typename std::decay<Arg1>::type>(h)
+      typename std::decay<Args>::type...>::completion_handler_type& h)
+    : spawn::detail::coro_async_result<Handler, typename std::decay<Args>::type...>(h)
   {
   }
 };
@@ -231,38 +309,38 @@ public:
   }
 };
 
-template <typename Handler, typename ReturnType, typename Arg2>
+template <typename Handler, typename ReturnType, typename ...Args>
 class SPAWN_NET_NAMESPACE::async_result<spawn::basic_yield_context<Handler>,
-    ReturnType(boost::system::error_code, Arg2)>
-  : public spawn::detail::coro_async_result<Handler, typename std::decay<Arg2>::type>
+    ReturnType(boost::system::error_code, Args...)>
+  : public spawn::detail::coro_async_result<Handler, typename std::decay<Args>::type...>
 {
 public:
   explicit async_result(
     typename spawn::detail::coro_async_result<Handler,
-      typename std::decay<Arg2>::type>::completion_handler_type& h)
-    : spawn::detail::coro_async_result<Handler, typename std::decay<Arg2>::type>(h)
+      typename std::decay<Args>::type...>::completion_handler_type& h)
+    : spawn::detail::coro_async_result<Handler, typename std::decay<Args>::type...>(h)
   {
   }
 };
 
-template <typename Handler, typename T, typename Allocator>
-struct SPAWN_NET_NAMESPACE::associated_allocator<spawn::detail::coro_handler<Handler, T>, Allocator>
+template <typename Handler, typename Allocator, typename ...Ts>
+struct SPAWN_NET_NAMESPACE::associated_allocator<spawn::detail::coro_handler<Handler, Ts...>, Allocator>
 {
   using type = associated_allocator_t<Handler, Allocator>;
 
-  static type get(const spawn::detail::coro_handler<Handler, T>& h,
+  static type get(const spawn::detail::coro_handler<Handler, Ts...>& h,
       const Allocator& a = Allocator()) noexcept
   {
     return associated_allocator<Handler, Allocator>::get(h.handler_, a);
   }
 };
 
-template <typename Handler, typename T, typename Executor>
-struct SPAWN_NET_NAMESPACE::associated_executor<spawn::detail::coro_handler<Handler, T>, Executor>
+template <typename Handler, typename Executor, typename ...Ts>
+struct SPAWN_NET_NAMESPACE::associated_executor<spawn::detail::coro_handler<Handler, Ts...>, Executor>
 {
   using type = associated_executor_t<Handler, Executor>;
 
-  static type get(const spawn::detail::coro_handler<Handler, T>& h,
+  static type get(const spawn::detail::coro_handler<Handler, Ts...>& h,
       const Executor& ex = Executor()) noexcept
   {
     return associated_executor<Handler, Executor>::get(h.handler_, ex);
