@@ -73,7 +73,7 @@ namespace detail {
   //private:
     std::shared_ptr<continuation_context> callee_;
     continuation_context& caller_;
-    Handler handler_;
+    const Handler& handler_;
     std::atomic<long>* ready_;
     boost::system::error_code* ec_;
     T* value_;
@@ -109,7 +109,7 @@ namespace detail {
   //private:
     std::shared_ptr<continuation_context> callee_;
     continuation_context& caller_;
-    Handler handler_;
+    const Handler& handler_;
     std::atomic<long>* ready_;
     boost::system::error_code* ec_;
   };
