@@ -59,7 +59,7 @@ public:
    */
   basic_yield_context(
       const std::weak_ptr<detail::continuation_context>& callee,
-      detail::continuation_context& caller, Handler& handler)
+      detail::continuation_context& caller, const Handler& handler)
     : callee_(callee),
       caller_(caller),
       handler_(handler),
@@ -111,7 +111,7 @@ private:
 #endif // defined(GENERATING_DOCUMENTATION)
   std::weak_ptr<detail::continuation_context> callee_;
   detail::continuation_context& caller_;
-  Handler handler_;
+  const Handler& handler_;
   boost::system::error_code* ec_;
 };
 
