@@ -371,7 +371,7 @@ auto spawn(Handler&& handler, Function&& function, StackAllocator&& salloc)
         std::forward<Function>(function),
         std::forward<StackAllocator>(salloc));
 
-  ex.dispatch(helper, a);
+  ex.dispatch(std::move(helper), a);
 }
 
 template <typename Handler, typename Function, typename StackAllocator>
@@ -394,7 +394,7 @@ auto spawn(basic_yield_context<Handler> ctx, Function&& function,
         std::forward<Function>(function),
         std::forward<StackAllocator>(salloc));
 
-  ex.dispatch(helper, a);
+  ex.dispatch(std::move(helper), a);
 }
 
 template <typename Function, typename Executor, typename StackAllocator>
