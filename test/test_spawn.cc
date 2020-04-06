@@ -74,6 +74,25 @@ TEST(Spawn, SpawnHandler)
   ASSERT_EQ(2, called);
 }
 
+struct moveonly_counting_handler : counting_handler {
+  using counting_handler::counting_handler;
+
+  moveonly_counting_handler(moveonly_counting_handler&&) = default;
+  moveonly_counting_handler(const moveonly_counting_handler&) = delete;
+};
+
+TEST(Spawn, SpawnMoveOnlyHandler)
+{
+  boost::asio::io_context ioc;
+  boost::asio::strand<boost::asio::io_context::executor_type> strand(ioc.get_executor());
+  int called = 0;
+  spawn::spawn(bind_executor(strand, moveonly_counting_handler(called)),
+               counting_handler(called));
+  ASSERT_EQ(1, ioc.run());
+  ASSERT_TRUE(ioc.stopped());
+  ASSERT_EQ(2, called);
+}
+
 TEST(Spawn, SpawnHandlerStackAllocator)
 {
   boost::asio::io_context ioc;
