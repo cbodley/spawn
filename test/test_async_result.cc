@@ -25,6 +25,13 @@ static_assert(yield_returns<int, void(int)>::value,
               "wrong return value for void(int)");
 static_assert(yield_returns<int, void(boost::system::error_code, int)>::value,
               "wrong return value for void(error_code, int)");
+// multiple-parameter return value
+static_assert(yield_returns<std::tuple<int, std::string>,
+                            void(int, std::string)>::value,
+              "wrong return value for void(int, string)");
+static_assert(yield_returns<std::tuple<int, std::string>,
+                            void(boost::system::error_code, int, std::string)>::value,
+              "wrong return value for void(error_code, int, string)");
 // single-tuple-parameter return value
 static_assert(yield_returns<std::tuple<int, std::string>,
                             void(std::tuple<int, std::string>)>::value,
