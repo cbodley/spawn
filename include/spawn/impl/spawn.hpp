@@ -44,7 +44,7 @@ namespace detail {
   class coro_handler
   {
   public:
-    coro_handler(basic_yield_context<Handler> ctx)
+    coro_handler(const basic_yield_context<Handler>& ctx)
       : callee_(ctx.callee_.lock()),
         caller_(ctx.caller_),
         handler_(ctx.handler_),
@@ -83,7 +83,7 @@ namespace detail {
   class coro_handler<Handler, void>
   {
   public:
-    coro_handler(basic_yield_context<Handler> ctx)
+    coro_handler(const basic_yield_context<Handler>& ctx)
       : callee_(ctx.callee_.lock()),
         caller_(ctx.caller_),
         handler_(ctx.handler_),
