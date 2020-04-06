@@ -28,15 +28,14 @@ namespace detail {
   {
   public:
     boost::context::continuation context_;
-
-    continuation_context()
-      : context_()
-    {
-    }
+    std::exception_ptr eptr_;
 
     void resume()
     {
       context_ = context_.resume();
+
+      if (eptr_)
+        std::rethrow_exception(std::move(eptr_));
     }
   };
 
@@ -321,19 +320,20 @@ namespace detail {
             }
             catch (...)
             {
-              eptr_ = std::current_exception();
+              auto callee = yh.callee_.lock();
+              if (callee)
+                callee->eptr_ = std::current_exception();
             }
             boost::context::continuation caller = std::move(data->caller_.context_);
             data.reset();
             return caller;
           });
-      if (eptr_)
-        std::rethrow_exception(eptr_);
+      if (callee_->eptr_)
+        std::rethrow_exception(std::move(callee_->eptr_));
     }
 
     std::shared_ptr<continuation_context> callee_;
     std::shared_ptr<spawn_data<Handler, Function, StackAllocator> > data_;
-    std::exception_ptr eptr_;
   };
 
   inline void default_spawn_handler() {}
