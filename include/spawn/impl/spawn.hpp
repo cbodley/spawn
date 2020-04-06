@@ -304,7 +304,8 @@ namespace detail {
           std::allocator_arg, std::move(data_->salloc_),
           [this] (boost::context::continuation&& c)
           {
-            std::shared_ptr<spawn_data<Handler, Function, StackAllocator> > data = data_;
+            // transfer ownership of data_ to the coroutine stack
+            auto data = std::move(data_);
             data->caller_.context_ = std::move(c);
             const basic_yield_context<Handler> yh(callee_, data->caller_, data->handler_);
             try
@@ -332,7 +333,7 @@ namespace detail {
     }
 
     std::shared_ptr<continuation_context> callee_;
-    std::shared_ptr<spawn_data<Handler, Function, StackAllocator> > data_;
+    std::unique_ptr<spawn_data<Handler, Function, StackAllocator> > data_;
     std::exception_ptr eptr_;
   };
 
@@ -365,11 +366,10 @@ auto spawn(Handler&& handler, Function&& function, StackAllocator&& salloc)
   auto a = detail::net::get_associated_allocator(handler);
 
   detail::spawn_helper<handler_type, function_type, StackAllocator> helper;
-  helper.data_ = std::make_shared<
-      detail::spawn_data<handler_type, function_type, StackAllocator> >(
+  helper.data_.reset(new detail::spawn_data<handler_type, function_type, StackAllocator>(
         std::forward<Handler>(handler), true,
         std::forward<Function>(function),
-        std::forward<StackAllocator>(salloc));
+        std::forward<StackAllocator>(salloc)));
 
   ex.dispatch(std::move(helper), a);
 }
@@ -388,11 +388,10 @@ auto spawn(basic_yield_context<Handler> ctx, Function&& function,
   auto a = detail::net::get_associated_allocator(handler);
 
   detail::spawn_helper<Handler, function_type, StackAllocator> helper;
-  helper.data_ = std::make_shared<
-      detail::spawn_data<Handler, function_type, StackAllocator> >(
-        std::forward<Handler>(handler), false,
+  helper.data_.reset(new detail::spawn_data<Handler, function_type, StackAllocator>(
+        std::move(handler), false,
         std::forward<Function>(function),
-        std::forward<StackAllocator>(salloc));
+        std::forward<StackAllocator>(salloc)));
 
   ex.dispatch(std::move(helper), a);
 }
