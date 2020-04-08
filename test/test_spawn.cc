@@ -246,17 +246,3 @@ TEST(Spawn, SpawnTimerDestruct)
   }
   ASSERT_EQ(0, called);
 }
-
-struct throwing_handler {
-  template <typename T>
-  void operator()(spawn::basic_yield_context<T>) {
-    throw std::runtime_error("");
-  }
-};
-
-TEST(Spawn, SpawnException)
-{
-  boost::asio::io_context ioc;
-  spawn::spawn(ioc, throwing_handler());
-  EXPECT_THROW(ioc.run_one(), std::runtime_error);
-}

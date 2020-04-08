@@ -19,3 +19,7 @@ endif()
 add_executable(test_spawn test_spawn.cc)
 target_link_libraries(test_spawn test_base spawn)
 add_test(test_spawn test_spawn)
+
+add_executable(test_exception test_exception.cc)
+target_link_libraries(test_exception test_base spawn)
+add_test(test_exception test_exception)
