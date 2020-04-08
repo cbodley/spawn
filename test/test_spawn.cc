@@ -15,6 +15,7 @@
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/system_timer.hpp>
 #include <boost/context/protected_fixedsize_stack.hpp>
+#include <boost/optional.hpp>
 #include <gtest/gtest.h>
 
 
@@ -335,4 +336,48 @@ TEST(Spawn, ReturnMultiple3)
   spawn::spawn(ioc, multiple3_handler{result});
   ASSERT_EQ(2, ioc.poll());
   EXPECT_EQ(std::make_tuple(42, std::string{"test"}, 2.0), result);
+}
+
+struct non_default_constructible {
+  non_default_constructible() = delete;
+  non_default_constructible(std::nullptr_t) {}
+};
+
+struct non_default_constructible_handler {
+  boost::optional<non_default_constructible>& result;
+  void operator()(spawn::yield_context y) {
+    using Signature = void(non_default_constructible);
+    boost::asio::async_completion<spawn::yield_context, Signature> init(y);
+    post(init.completion_handler, non_default_constructible{nullptr});
+    result = init.result.get();
+  }
+};
+
+TEST(Spawn, ReturnNonDefaultConstructible)
+{
+  boost::asio::io_context ioc;
+  boost::optional<non_default_constructible> result;
+  spawn::spawn(ioc, non_default_constructible_handler{result});
+  ASSERT_EQ(2, ioc.poll());
+  ASSERT_TRUE(result);
+}
+
+struct multiple_non_default_constructible_handler {
+  boost::optional<std::tuple<int, non_default_constructible>>& result;
+  void operator()(spawn::yield_context y) {
+    using Signature = void(error_code, int, non_default_constructible);
+    boost::asio::async_completion<spawn::yield_context, Signature> init(y);
+    post(init.completion_handler, error_code{}, 42,
+         non_default_constructible{nullptr});
+    result = init.result.get();
+  }
+};
+
+TEST(Spawn, ReturnMultipleNonDefaultConstructible)
+{
+  boost::asio::io_context ioc;
+  boost::optional<std::tuple<int, non_default_constructible>> result;
+  spawn::spawn(ioc, multiple_non_default_constructible_handler{result});
+  ASSERT_EQ(2, ioc.poll());
+  ASSERT_TRUE(result);
 }

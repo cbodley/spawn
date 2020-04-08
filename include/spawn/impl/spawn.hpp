@@ -18,6 +18,7 @@
 
 #include <boost/system/system_error.hpp>
 #include <boost/context/continuation.hpp>
+#include <boost/optional.hpp>
 
 #include <spawn/detail/net.hpp>
 #include <spawn/detail/is_stack_allocator.hpp>
@@ -76,7 +77,7 @@ namespace detail {
     Handler handler_;
     std::atomic<long>* ready_;
     boost::system::error_code* ec_;
-    std::tuple<Ts...>* value_;
+    boost::optional<std::tuple<Ts...>>* value_;
   };
 
   template <typename Handler, typename T>
@@ -115,7 +116,7 @@ namespace detail {
     Handler handler_;
     std::atomic<long>* ready_;
     boost::system::error_code* ec_;
-    T* value_;
+    boost::optional<T>* value_;
   };
 
   template <typename Handler>
@@ -179,7 +180,7 @@ namespace detail {
       if (--ready_ != 0)
         caller_.resume(); // suspend caller
       if (!out_ec_ && ec_) throw boost::system::system_error(ec_);
-      return std::move(value_);
+      return std::move(*value_);
     }
 
   private:
@@ -188,7 +189,7 @@ namespace detail {
     std::atomic<long> ready_;
     boost::system::error_code* out_ec_;
     boost::system::error_code ec_;
-    return_type value_;
+    boost::optional<return_type> value_;
   };
 
   template <typename Handler, typename T>
@@ -217,7 +218,7 @@ namespace detail {
       if (--ready_ != 0)
         caller_.resume(); // suspend caller
       if (!out_ec_ && ec_) throw boost::system::system_error(ec_);
-      return std::move(value_);
+      return std::move(*value_);
     }
 
   private:
@@ -226,7 +227,7 @@ namespace detail {
     std::atomic<long> ready_;
     boost::system::error_code* out_ec_;
     boost::system::error_code ec_;
-    return_type value_;
+    boost::optional<return_type> value_;
   };
 
   template <typename Handler>
