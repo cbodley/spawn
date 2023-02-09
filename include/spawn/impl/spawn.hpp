@@ -481,7 +481,7 @@ auto spawn(const Executor& ex, Function&& function, StackAllocator&& salloc)
   -> typename std::enable_if<detail::net::is_executor<Executor>::value &&
        detail::is_stack_allocator<typename std::decay<StackAllocator>::type>::value>::type
 {
-  spawn(detail::net::strand<Executor>(ex),
+  spawn(detail::net::make_strand(ex),
       std::forward<Function>(function),
       std::forward<StackAllocator>(salloc));
 }

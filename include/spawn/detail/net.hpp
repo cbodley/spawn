@@ -35,6 +35,7 @@ using boost::asio::executor;
 using boost::asio::executor_binder;
 using boost::asio::is_executor;
 
+using boost::asio::make_strand;
 using boost::asio::strand;
 
 } // namespace net
